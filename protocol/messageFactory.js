@@ -97,4 +97,18 @@ export class MessageFactory {
     static createPeerExchange(sender, knownPeers) {
         return this.#createBaseMessage('PEER_EXCHANGE', sender, JSON.stringify(knownPeers), { ttl: 3 });
     }
+
+    /**
+     * Creates a SYNC_BATCH message.
+     * 
+     * System Design Reason: Groups multiple missing messages into a single transport 
+     * frame for efficient offline state synchronization when a peer reconnects.
+     * 
+     * @param {string} sender - Node sending the sync batch.
+     * @param {Array} messages - Array of missing messages.
+     * @returns {import('./schema.js').P2PMessage}
+     */
+    static createSyncBatch(sender, messages) {
+        return this.#createBaseMessage('SYNC_BATCH', sender, JSON.stringify(messages), { ttl: 1 });
+    }
 }

@@ -8,7 +8,7 @@
  */
 
 /**
- * @typedef {'CHAT' | 'ACK' | 'HEARTBEAT' | 'PEER_EXCHANGE'} MessageType
+ * @typedef {'CHAT' | 'ACK' | 'HEARTBEAT' | 'PEER_EXCHANGE' | 'SYNC_BATCH'} MessageType
  * Defines the allowed message types in the P2P protocol.
  */
 
