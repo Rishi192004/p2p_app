@@ -30,8 +30,12 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Connection Pool**: Manages the "Topological Health" of the node. It enforces limits to prevent "File Descriptor Exhaustion" (a common production pitfall).
 
 ### B. Protocol Layer (`protocol/`)
-*Focus: Causal Order & Epidemic Propagation*
+*Focus: Causal Order, Topic Scoping & Spam Defense*
 - **Gossip Engine**: Implements an **Epidemic Protocol**.
+- **Topic Router**: Handles channel scoping via `Map<topic, Set<peerId>>`.
+    - **Tradeoff - Gossip Topics vs Kafka**: We sacrifice strict delivery guarantees for zero-infrastructure scaling. Scoping reduces network chatter by creating interest-based "sub-graphs."
+- **Rate Limiter**: Implements a **Token Bucket** algorithm (20 capacity, 5/sec refill).
+    - **Senior Rationale**: We chose Token Bucket over Leaky Bucket to allow for "Burst Tolerance"—essential for natural chat patterns—while bounding the average sustained rate.
 - **Lamport Clocks**: Our solution to the "Physical Clock" problem. Since we can't trust peer system clocks, we use logical counters to establish a `happened-before` relationship.
 - **Deduplication**: Every node maintains a `seenMessages` cache.
     - **Tradeoff**: Memory vs. Network. We use memory (RAM) to store IDs to prevent "Broadcast Storms" that would otherwise saturate the network bandwidth.
@@ -60,16 +64,19 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 | **Infinite Loops** | **Seen Cache (Set)** | O(1) lookups are mandatory. An array search here would turn the node into a CPU bottleneck. |
 | **Dead Peer Detection** | **Suspicion Machine** | Avoids "Flapping." We don't mark a peer DEAD on the first missed heartbeat; we mark it SUSPECTED first. |
 | **Offline Recovery** | **Delta Sync** | Essential for the "Mobile Use Case" where peers frequently drop and rejoin. |
+| **Spam / Flood** | **Token Bucket** | Bounds average rate while allowing bursts. Fixed Window is too jerky; Leaky Bucket is too restrictive for chat. |
+| **Network Noise** | **Topic Scoping** | Prevents "Over-Gossip." Nodes only forward to peers interested in the specific channel. |
 
 ---
 
 ## 4. Junior Dev Study Guide
 
-If you are studying this codebase, focus on these three patterns:
+If you are studying this codebase, focus on these four patterns:
 
 1.  **Idempotency**: Notice how `gossipEngine.receiveMessage` can be called multiple times with the same message, but only "processes" it once. This is the foundation of reliable distributed systems.
-2.  **Backpressure**: Look at the `syncManager` rate limiting. In production, the fastest way to break a system is to send data faster than the receiver can process it.
-3.  **State Isolation**: Observe `node/state.js`. By centralizing state mutation, we avoid "Race Conditions" where two different modules try to update the same peer info at once.
+2.  **Backpressure**: Look at the `syncManager` rate limiting and Token Bucket. In production, the fastest way to break a system is to send data faster than the receiver can process it.
+3.  **State Isolation**: Observe `node/state.js`. By centralizing state mutation, we avoid "Race Conditions."
+4.  **Adaptive Defenses**: Study the `RateLimiter` banning logic. Note the tradeoff: we ban by `peerId` to mitigate NAT issues, but acknowledge that "Identity is Cheap" (Sybil attacks).
 
 ---
 
@@ -77,7 +84,7 @@ If you are studying this codebase, focus on these three patterns:
 
 - **Runtime**: Node.js (ESM)
 - **DB**: LevelDB (Embedded)
-- **Status**: Core Gossip, Persistence, and Offline Sync are **Production-Ready**. 
+- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, and Spam Protection are **Production-Ready**. 
 - **Next Steps**: Implementing Ed25519 Message Signing (Security) and mDNS Auto-Discovery.
 
 ---

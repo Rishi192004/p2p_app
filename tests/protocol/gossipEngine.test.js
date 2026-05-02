@@ -16,12 +16,12 @@ test('GossipEngine', async (t) => {
         const msg = { id: 'msg-1', sender: 'node-A', ttl: 5, lamportTimestamp: 1 };
 
         engine.receiveMessage(msg, 'neighbor-1');
-        assert.strictEqual(engine.metrics.new_received, 1);
-        assert.strictEqual(engine.metrics.duplicate_received, 0);
+        assert.strictEqual(engine.metrics.messages_received, 1);
+        assert.strictEqual(engine.metrics.messages_dropped_duplicate, 0);
 
         engine.receiveMessage(msg, 'neighbor-1');
-        assert.strictEqual(engine.metrics.new_received, 1);
-        assert.strictEqual(engine.metrics.duplicate_received, 1);
+        assert.strictEqual(engine.metrics.messages_received, 2); // gets incremented every time
+        assert.strictEqual(engine.metrics.messages_dropped_duplicate, 1);
     });
 
     await t.test('receiveMessage should decrement TTL and forward', () => {

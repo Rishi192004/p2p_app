@@ -1,6 +1,8 @@
 import { EventEmitter } from 'events';
 import config from '../config/default.js';
 import pino from 'pino';
+import { RateLimiter } from './rateLimiter.js';
+import { TopicRouter } from './topicRouter.js';
 
 const logger = pino({ name: 'gossipEngine' });
 
@@ -45,8 +47,17 @@ export class GossipEngine extends EventEmitter {
         // incoming message, Set is drastically more efficient.
         this.seenMessages = new Set();
         
+        this.rateLimiter = new RateLimiter();
+        this.topicRouter = new TopicRouter();
+
         // Metrics
-        this.metrics = { duplicate_received: 0, new_received: 0, forwarded: 0 };
+        this.metrics = { 
+            messages_received: 0,
+            messages_forwarded: 0, 
+            messages_dropped_ttl: 0, 
+            messages_dropped_duplicate: 0, 
+            messages_dropped_ratelimit: 0 
+        };
     }
 
     /**
@@ -56,21 +67,30 @@ export class GossipEngine extends EventEmitter {
      * @param {string} fromPeerId 
      */
     receiveMessage(message, fromPeerId) {
+        this.metrics.messages_received++;
+
+        // 1. Rate Limit Check
+        // If fromPeerId is null (e.g. self-originated message), we bypass rate limiting.
+        if (fromPeerId && !this.rateLimiter.checkLimit(fromPeerId)) {
+            this.metrics.messages_dropped_ratelimit++;
+            return;
+        }
+
         // Update local lamport clock
         if (message.lamportTimestamp) {
             this.lamportClock.update(message.lamportTimestamp);
         }
 
+        // 2. Deduplication Check
         if (this.seenMessages.has(message.id)) {
             // If seen: drop silently, log metric
-            this.metrics.duplicate_received++;
+            this.metrics.messages_dropped_duplicate++;
             logger.debug({ event: 'message_dropped', reason: 'duplicate', id: message.id });
             return;
         }
 
         // If new: add to seen set
         this.seenMessages.add(message.id);
-        this.metrics.new_received++;
 
         // Decrement TTL, if TTL > 0 -> forward
         message.ttl -= 1;
@@ -78,6 +98,7 @@ export class GossipEngine extends EventEmitter {
         if (message.ttl > 0) {
             this.forwardMessage(message, fromPeerId);
         } else {
+            this.metrics.messages_dropped_ttl++;
             logger.debug({ event: 'message_dropped', reason: 'ttl_expired', id: message.id });
         }
 
@@ -93,8 +114,20 @@ export class GossipEngine extends EventEmitter {
      */
     forwardMessage(message, fromPeerId = null) {
         // Active peers
-        const activePeers = Array.from(this.connectionPool.outboundConnections.keys());
+        let availablePeers = Array.from(this.connectionPool.outboundConnections.keys());
         
+        // --- TOPIC SCOPING ---
+        // If the message is scoped to a specific topic, we only gossip it to peers 
+        // who have explicitly subscribed to that topic.
+        // Comment: this is the core benefit of topic scoping in gossip systems. 
+        // Instead of blasting every message to the entire network (which wastes 
+        // bandwidth), we create "sub-graphs" of interested nodes. This drastically 
+        // reduces overall network chatter and allows the system to scale gracefully.
+        if (message.topic && message.topic !== 'global') {
+            const subscribedPeers = this.topicRouter.getPeersForTopic(message.topic);
+            availablePeers = availablePeers.filter(p => subscribedPeers.has(p));
+        }
+
         // We want to exclude the originator and the immediate sender
         const excludeBase = new Set();
         excludeBase.add(message.sender);
@@ -102,7 +135,7 @@ export class GossipEngine extends EventEmitter {
             excludeBase.add(fromPeerId);
         }
 
-        const availablePeers = activePeers.filter(p => !excludeBase.has(p));
+        availablePeers = availablePeers.filter(p => !excludeBase.has(p));
         
         // Select K random peers
         const k = Math.min(config.GOSSIP_FANOUT, availablePeers.length);
@@ -114,18 +147,27 @@ export class GossipEngine extends EventEmitter {
             availablePeers.splice(randomIndex, 1);
         }
 
-        // connectionPool.broadcast takes an array of peers to EXCLUDE
-        // So we need to exclude everyone who is NOT in selectedPeers
-        const finalExcludeList = activePeers.filter(p => !selectedPeers.has(p));
-
-        // Always exclude the message sender and immediate sender
-        for (const peer of excludeBase) {
-            if (!finalExcludeList.includes(peer)) {
-                finalExcludeList.push(peer);
-            }
+        if (selectedPeers.size === 0) {
+            return; // No one to forward to
         }
 
+        // connectionPool.broadcast takes an array of peers to EXCLUDE
+        // We calculate who to exclude among ALL active peers so that broadcast
+        // only hits the `selectedPeers`.
+        const allActivePeers = Array.from(this.connectionPool.outboundConnections.keys());
+        const finalExcludeList = allActivePeers.filter(p => !selectedPeers.has(p));
+
         this.connectionPool.broadcast(message, finalExcludeList);
-        this.metrics.forwarded++;
+        this.metrics.messages_forwarded++;
+    }
+
+    // --- Topic Router Proxies ---
+
+    subscribe(peerId, topic) {
+        this.topicRouter.subscribe(peerId, topic);
+    }
+
+    unsubscribe(peerId, topic) {
+        this.topicRouter.unsubscribe(peerId, topic);
     }
 }
