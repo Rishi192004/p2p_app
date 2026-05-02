@@ -8,7 +8,7 @@
  */
 
 /**
- * @typedef {'CHAT' | 'ACK' | 'HEARTBEAT' | 'PEER_EXCHANGE' | 'SYNC_BATCH'} MessageType
+ * @typedef {'CHAT' | 'ACK' | 'HEARTBEAT' | 'PEER_EXCHANGE' | 'PEER_LIST' | 'SYNC_BATCH'} MessageType
  * Defines the allowed message types in the P2P protocol.
  */
 
@@ -23,6 +23,7 @@
  * @property {string} topic - The pub/sub topic the message belongs to (default "global").
  * @property {string} payload - The actual content/data of the message (JSON stringified if complex).
  * @property {string} [signature] - Optional base64 Ed25519 signature for verifying message authenticity.
+ * @property {string} [senderPublicKey] - Optional base64 public key (usually only included in HELLO).
  * @property {string} createdAt - ISO 8601 string of when the message was created.
  */
 

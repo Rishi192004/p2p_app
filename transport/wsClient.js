@@ -6,13 +6,14 @@ import config from '../config/default.js';
 const logger = pino({ name: 'wsClient' });
 
 export class WSClient extends EventEmitter {
-    constructor(host, port, localPeerId, remotePeerId = null) {
+    constructor(host, port, localPeerId, remotePeerId = null, localPublicKey = null) {
         super();
         this.host = host;
         this.port = port;
         this.url = `ws://${host}:${port}`;
         this.localPeerId = localPeerId;
         this.remotePeerId = remotePeerId; // The ID of the peer we intend to connect to
+        this.localPublicKey = localPublicKey;
 
         this.ws = null;
         this.isConnected = false;
@@ -44,7 +45,11 @@ export class WSClient extends EventEmitter {
             this.reconnectDelay = config.INITIAL_RECONNECT_DELAY_MS;
 
             // Immediately send HELLO handshake
-            const helloMsg = { type: 'HELLO', peerId: this.localPeerId };
+            const helloMsg = { 
+                type: 'HELLO', 
+                peerId: this.localPeerId,
+                ...(this.localPublicKey && { publicKey: this.localPublicKey })
+            };
             this.ws.send(JSON.stringify(helloMsg));
 
             this.emit('connected');

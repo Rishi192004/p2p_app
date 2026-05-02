@@ -46,7 +46,8 @@ export class WSServer extends EventEmitter {
                         this.activeConnections.set(connectedPeerId, ws);
                         logger.info({ event: 'handshake_success', peerId: connectedPeerId }, 'Peer handshake successful');
                         
-                        this.emit('peer:connected', connectedPeerId);
+                        // Pass along the public key if provided in the HELLO message
+                        this.emit('peer:connected', connectedPeerId, parsedMsg.publicKey);
                     } else {
                         logger.warn({ event: 'handshake_failed', ip }, 'First message was not a valid HELLO handshake. Closing connection.');
                         ws.close(1008, 'Handshake required');

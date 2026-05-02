@@ -6,9 +6,10 @@ import { EventEmitter } from 'events';
 const logger = pino({ name: 'connectionPool' });
 
 export class ConnectionPool extends EventEmitter {
-    constructor(localPeerId) {
+    constructor(localPeerId, localPublicKey = null) {
         super();
         this.localPeerId = localPeerId;
+        this.localPublicKey = localPublicKey;
         this.outboundConnections = new Map(); // Map<peerId, WSClient>
     }
 
@@ -29,7 +30,7 @@ export class ConnectionPool extends EventEmitter {
             return;
         }
 
-        const client = new WSClient(host, port, this.localPeerId, peerId);
+        const client = new WSClient(host, port, this.localPeerId, peerId, this.localPublicKey);
         this.outboundConnections.set(peerId, client);
 
         client.on('connected', () => {

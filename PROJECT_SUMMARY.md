@@ -29,7 +29,15 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Tradeoff - WS vs TCP**: We chose WebSockets to allow for easier future integration with browser-based nodes, even though raw TCP might have slightly lower overhead.
 - **Connection Pool**: Manages the "Topological Health" of the node. It enforces limits to prevent "File Descriptor Exhaustion" (a common production pitfall).
 
-### B. Protocol Layer (`protocol/`)
+### B. Discovery Layer (`node/discovery/`)
+*Focus: Multi-Vector Topology Expansion*
+- **mDNS (Local)**: Zero-config LAN discovery. Perfect for subnets, but doesn't traverse the WAN.
+- **Bootstrap (Global)**: Centralized entry points for internet discovery.
+    - **Senior Rationale**: We use **Exponential Backoff with Jitter** to solve the "Thundering Herd" problem, preventing nodes from DDOSing the bootstrap server after a network-wide restart.
+- **Peer Exchange (Gossip)**: Unstructured gossip of peer lists.
+    - **Tradeoff - Gossip vs Kademlia**: We use unstructured gossip for simplicity. While Kademlia (BitTorrent/IPFS) provides O(log N) structured lookups, pure Gossip is sufficient for messaging apps where total node counts are relatively small and full connectivity is desired.
+
+### C. Protocol Layer (`protocol/`)
 *Focus: Causal Order, Topic Scoping & Spam Defense*
 - **Gossip Engine**: Implements an **Epidemic Protocol**.
 - **Topic Router**: Handles channel scoping via `Map<topic, Set<peerId>>`.
@@ -40,7 +48,16 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Deduplication**: Every node maintains a `seenMessages` cache.
     - **Tradeoff**: Memory vs. Network. We use memory (RAM) to store IDs to prevent "Broadcast Storms" that would otherwise saturate the network bandwidth.
 
-### C. Storage Layer (`storage/`)
+### D. Security Layer (`security/`)
+*Focus: Authenticity, Integrity & Confidentiality*
+- **Key Manager**: Handles Ed25519 (Signing) and X25519 (Encryption) keypairs.
+    - **Senior Rationale**: We use Ed25519 because it offers high security with tiny (32-byte) keys and fast verification, ideal for gossiping.
+- **Encryptor**: Implements **XSalsa20-Poly1305** (Authenticated Encryption).
+    - **Tradeoff**: We use a static shared secret per DM/Topic for simplicity. A production-grade system would implement **Signal's Double Ratchet** for Perfect Forward Secrecy.
+- **Security Manager**: Orchestrates message signing and verification. 
+    - **Integrity**: Every gossip message is signed. A peer cannot modify a message while forwarding it without invalidating the signature.
+
+### E. Storage Layer (`storage/`)
 *Focus: Data Durability & Range Scans*
 - **LevelDB**: An embedded LSM-tree database.
 - **Composite Keys**: `msg:{topic}:{lamportTimestamp}:{messageId}`.
@@ -48,7 +65,7 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Batching Strategy**: We buffer writes (50 msgs / 100ms).
     - **Tradeoff**: Durability vs. Performance. A crash might lose 100ms of data, but disk longevity and write throughput increase by 10x.
 
-### D. Sync Manager (`storage/syncManager.js`)
+### F. Sync Manager (`storage/syncManager.js`)
 *Focus: Partition Resolution*
 - **Log Replay**: When a peer reconnects, we don't send the whole database. We use the last known Lamport time to perform a "Delta Sync."
 - **Rate Limiting**: Syncing 10,000 missed messages at once would kill the connection. We use "Burst-and-Pause" logic to maintain transport stability.
@@ -66,17 +83,22 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 | **Offline Recovery** | **Delta Sync** | Essential for the "Mobile Use Case" where peers frequently drop and rejoin. |
 | **Spam / Flood** | **Token Bucket** | Bounds average rate while allowing bursts. Fixed Window is too jerky; Leaky Bucket is too restrictive for chat. |
 | **Network Noise** | **Topic Scoping** | Prevents "Over-Gossip." Nodes only forward to peers interested in the specific channel. |
+| **Impersonation** | **Ed25519 Signatures** | Proves the message originated from the claimed sender without revealing the secret key. |
+| **Eavesdropping** | **XSalsa20-Poly1305** | Ensures that only the intended recipient(s) can read the message content. |
+| **Topology Growth** | **Layered Discovery** | Combines mDNS (LAN), Bootstrap (WAN Entry), and PEX (Gossip) for robust connectivity. |
 
 ---
 
 ## 4. Junior Dev Study Guide
 
-If you are studying this codebase, focus on these four patterns:
+If you are studying this codebase, focus on these six patterns:
 
 1.  **Idempotency**: Notice how `gossipEngine.receiveMessage` can be called multiple times with the same message, but only "processes" it once. This is the foundation of reliable distributed systems.
 2.  **Backpressure**: Look at the `syncManager` rate limiting and Token Bucket. In production, the fastest way to break a system is to send data faster than the receiver can process it.
 3.  **State Isolation**: Observe `node/state.js`. By centralizing state mutation, we avoid "Race Conditions."
 4.  **Adaptive Defenses**: Study the `RateLimiter` banning logic. Note the tradeoff: we ban by `peerId` to mitigate NAT issues, but acknowledge that "Identity is Cheap" (Sybil attacks).
+5.  **Signature Chaining**: Observe that forwarded messages remain signed by the *originator*, not the *forwarder*. This allows trust to propagate across untrusted hops.
+6.  **Staggered Reconnection**: Study `BootstrapDiscovery`'s jitter implementation. Understand why randomizing timing is better for server health than fixed intervals.
 
 ---
 
@@ -84,8 +106,10 @@ If you are studying this codebase, focus on these four patterns:
 
 - **Runtime**: Node.js (ESM)
 - **DB**: LevelDB (Embedded)
-- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, and Spam Protection are **Production-Ready**. 
-- **Next Steps**: Implementing Ed25519 Message Signing (Security) and mDNS Auto-Discovery.
+- **Crypto**: `sodium-native` (libsodium)
+- **Discovery**: `mdns-js` (Local) + PEX (Gossip)
+- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, Spam Protection, E2E Encryption, and Multi-Vector Discovery are **Production-Ready**. 
+- **Next Steps**: Implementing a UI client and formalizing the NAT Traversal (STUN/TURN) layer.
 
 ---
 *Created by: Senior Architectural Lead*

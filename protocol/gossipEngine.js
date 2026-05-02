@@ -37,10 +37,11 @@ const logger = pino({ name: 'gossipEngine' });
  *    (O(1)), turning exponential broadcast storms into efficient linear propagation.
  */
 export class GossipEngine extends EventEmitter {
-    constructor(connectionPool, lamportClock) {
+    constructor(connectionPool, lamportClock, securityManager) {
         super();
         this.connectionPool = connectionPool;
         this.lamportClock = lamportClock;
+        this.securityManager = securityManager;
         
         // Data Structure Choice: Set over Array. Checking if an element exists in a Set
         // is O(1), whereas an Array is O(N). Since we perform a lookup for every single 
@@ -56,7 +57,8 @@ export class GossipEngine extends EventEmitter {
             messages_forwarded: 0, 
             messages_dropped_ttl: 0, 
             messages_dropped_duplicate: 0, 
-            messages_dropped_ratelimit: 0 
+            messages_dropped_ratelimit: 0,
+            messages_dropped_invalid_signature: 0
         };
     }
 
@@ -73,6 +75,13 @@ export class GossipEngine extends EventEmitter {
         // If fromPeerId is null (e.g. self-originated message), we bypass rate limiting.
         if (fromPeerId && !this.rateLimiter.checkLimit(fromPeerId)) {
             this.metrics.messages_dropped_ratelimit++;
+            return;
+        }
+
+        // 2. Signature Verification
+        // If securityManager is provided, we verify the message signature.
+        if (this.securityManager && !this.securityManager.verifyIncomingMessage(message)) {
+            this.metrics.messages_dropped_invalid_signature++;
             return;
         }
 
