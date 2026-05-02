@@ -52,9 +52,12 @@ export class SecurityManager {
         this.peerPublicKeys = new Map();
     }
 
-    async init() {
+    async init(localPeerId = null) {
         await this.keyManager.init();
-        logger.info({ event: 'security_manager_initialized' });
+        if (localPeerId) {
+            this.registerPeerKey(localPeerId, this.keyManager.getPublicKey());
+        }
+        logger.info({ event: 'security_manager_initialized', localPeerId });
     }
 
     /**
@@ -96,7 +99,14 @@ export class SecurityManager {
             return false;
         }
 
-        const senderPublicKey = this.peerPublicKeys.get(message.sender);
+        let senderPublicKey = this.peerPublicKeys.get(message.sender);
+        
+        if (!senderPublicKey && message.senderPublicKey) {
+            // Use and learn the key from the message itself
+            this.registerPeerKey(message.sender, message.senderPublicKey);
+            senderPublicKey = message.senderPublicKey;
+        }
+
         if (!senderPublicKey) {
             // In a real P2P system, we might ask the network for the key, 
             // but for simplicity, if we don't have it, we can't verify.

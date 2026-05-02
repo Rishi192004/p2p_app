@@ -114,7 +114,7 @@ export class GossipEngine extends EventEmitter {
      */
     forwardMessage(message, fromPeerId = null) {
         // Active peers
-        let availablePeers = Array.from(this.connectionPool.outboundConnections.keys());
+        let availablePeers = this.connectionPool.getAllPeerIds();
         
         // --- TOPIC SCOPING ---
         // If the message is scoped to a specific topic, we only gossip it to peers 
@@ -154,7 +154,7 @@ export class GossipEngine extends EventEmitter {
         // connectionPool.broadcast takes an array of peers to EXCLUDE
         // We calculate who to exclude among ALL active peers so that broadcast
         // only hits the `selectedPeers`.
-        const allActivePeers = Array.from(this.connectionPool.outboundConnections.keys());
+        const allActivePeers = this.connectionPool.getAllPeerIds();
         const finalExcludeList = allActivePeers.filter(p => !selectedPeers.has(p));
 
         this.connectionPool.broadcast(message, finalExcludeList);

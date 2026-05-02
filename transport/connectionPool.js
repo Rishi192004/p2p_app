@@ -11,6 +11,7 @@ export class ConnectionPool extends EventEmitter {
         this.localPeerId = localPeerId;
         this.localPublicKey = localPublicKey;
         this.outboundConnections = new Map(); // Map<peerId, WSClient>
+        this.inboundConnections = new Map();  // Map<peerId, WebSocket>
     }
 
     /**
@@ -57,6 +58,24 @@ export class ConnectionPool extends EventEmitter {
     }
 
     /**
+     * Adds an inbound connection (from WSServer) to the pool.
+     * @param {Object} client - The client object from WSServer
+     */
+    addInboundConnection(client) {
+        const peerId = client.remotePeerId;
+        this.inboundConnections.set(peerId, client);
+
+        client.on('message', (msg) => {
+            this.emit('message:received', msg, peerId);
+        });
+
+        client.on('close', () => {
+            this.inboundConnections.delete(peerId);
+            this.emit('peer:disconnected', peerId);
+        });
+    }
+
+    /**
      * Manually disconnects and removes a peer from the pool.
      * @param {string} peerId 
      */
@@ -71,6 +90,27 @@ export class ConnectionPool extends EventEmitter {
     }
 
     /**
+     * Sends a message to a specific peer.
+     * @param {string} peerId 
+     * @param {Object} message 
+     */
+    send(peerId, message) {
+        const outbound = this.outboundConnections.get(peerId);
+        if (outbound) {
+            outbound.send(message);
+            return;
+        }
+
+        const inbound = this.inboundConnections.get(peerId);
+        if (inbound) {
+            inbound.send(message);
+            return;
+        }
+
+        logger.warn({ event: 'send_failed_no_connection', peerId }, 'Cannot send message, peer not in pool');
+    }
+
+    /**
      * Broadcasts a message to all active outbound connections.
      * @param {Object} message - The message object to send.
      * @param {string[]} excludePeerIds - Array of peerIds to skip (prevents immediate loopbacks).
@@ -80,6 +120,13 @@ export class ConnectionPool extends EventEmitter {
         let broadcastCount = 0;
 
         for (const [peerId, client] of this.outboundConnections.entries()) {
+            if (!excludeSet.has(peerId)) {
+                client.send(message);
+                broadcastCount++;
+            }
+        }
+
+        for (const [peerId, client] of this.inboundConnections.entries()) {
             if (!excludeSet.has(peerId)) {
                 client.send(message);
                 broadcastCount++;
@@ -100,6 +147,18 @@ export class ConnectionPool extends EventEmitter {
         if (client.isConnected) return 'CONNECTED';
         if (client.ws && client.ws.readyState === 0) return 'CONNECTING'; // 0 = WebSocket.CONNECTING
         return 'DISCONNECTED';
+    }
+
+    /**
+     * Returns all unique peer IDs currently connected (inbound or outbound).
+     * @returns {string[]}
+     */
+    getAllPeerIds() {
+        const ids = new Set([
+            ...this.outboundConnections.keys(),
+            ...this.inboundConnections.keys()
+        ]);
+        return Array.from(ids);
     }
 }
 

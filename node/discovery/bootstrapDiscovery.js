@@ -40,7 +40,23 @@ export class BootstrapDiscovery {
             return;
         }
 
-        this.bootstrapNodes.forEach((node, index) => {
+        this.bootstrapNodes.forEach((nodeStr, index) => {
+            // Support both object {host, port, peerId} and string "ws://host:port"
+            let node = nodeStr;
+            if (typeof nodeStr === 'string') {
+                try {
+                    const url = new URL(nodeStr);
+                    node = {
+                        host: url.hostname,
+                        port: parseInt(url.port) || 80,
+                        peerId: `bootstrap-${index}` // We'll learn the real ID after connect
+                    };
+                } catch (err) {
+                    logger.error({ event: 'bootstrap_url_error', url: nodeStr, error: err.message });
+                    return;
+                }
+            }
+
             // Add jitter to stagger connections
             const jitter = Math.random() * 5000;
             setTimeout(() => {

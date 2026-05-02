@@ -5,10 +5,11 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('wsServer');
 
 export class WSServer extends EventEmitter {
-    constructor(port, localPeerId) {
+    constructor(port, localPeerId, localPublicKey = null) {
         super();
         this.port = port;
         this.localPeerId = localPeerId;
+        this.localPublicKey = localPublicKey;
         this.wss = null;
         this.activeConnections = new Map(); // Map<peerId, WebSocket>
     }
@@ -46,8 +47,30 @@ export class WSServer extends EventEmitter {
                         this.activeConnections.set(connectedPeerId, ws);
                         logger.info({ event: 'handshake_success', peerId: connectedPeerId }, 'Peer handshake successful');
                         
-                        // Pass along the public key if provided in the HELLO message
+                        // Send HELLO response so the client knows our identity and public key
+                        const helloResponse = {
+                            type: 'HELLO',
+                            peerId: this.localPeerId,
+                            port: this.port,
+                            publicKey: this.localPublicKey
+                        };
+                        ws.send(JSON.stringify(helloResponse));
+                        
                         this.emit('peer:connected', connectedPeerId, parsedMsg.publicKey);
+
+                        // Create the inbound client relay
+                        const inboundClient = new EventEmitter();
+                        inboundClient.remotePeerId = connectedPeerId;
+                        inboundClient.send = (msg) => ws.send(JSON.stringify(msg));
+                        
+                        // Local relay for this specific connection
+                        const relay = (msg) => inboundClient.emit('message', msg);
+                        ws._relayInboundMessage = relay;
+                        
+                        ws.on('close', () => inboundClient.emit('close'));
+                        ws.on('error', (err) => inboundClient.emit('error', err));
+
+                        this.emit('connection', inboundClient);
                     } else {
                         logger.warn({ event: 'handshake_failed', ip }, 'First message was not a valid HELLO handshake. Closing connection.');
                         ws.close(1008, 'Handshake required');
@@ -56,7 +79,9 @@ export class WSServer extends EventEmitter {
                 }
 
                 // Normal message processing
-                logger.debug({ event: 'message_received', peerId: connectedPeerId, msgType: parsedMsg.type }, 'Message received');
+                if (ws._relayInboundMessage) {
+                    ws._relayInboundMessage(parsedMsg);
+                }
                 this.emit('message:received', parsedMsg, connectedPeerId);
             });
 

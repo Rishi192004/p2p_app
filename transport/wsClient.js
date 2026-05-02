@@ -48,6 +48,7 @@ export class WSClient extends EventEmitter {
             const helloMsg = { 
                 type: 'HELLO', 
                 peerId: this.localPeerId,
+                port: config.PORT, // Inform them our listening port
                 ...(this.localPublicKey && { publicKey: this.localPublicKey })
             };
             this.ws.send(JSON.stringify(helloMsg));

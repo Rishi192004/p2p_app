@@ -35,6 +35,7 @@ export class MessageFactory {
             ttl: options.ttl ?? config.MAX_TTL,
             lamportTimestamp: this.#logicalClock,
             sender,
+            senderPublicKey: options.senderPublicKey || null,
             topic: options.topic ?? 'global',
             payload,
             createdAt: new Date().toISOString()
@@ -50,10 +51,11 @@ export class MessageFactory {
      * @param {string} sender - Originating peer ID.
      * @param {string} text - Chat message content.
      * @param {string} [topic="global"] - Channel or topic.
+     * @param {string} [senderPublicKey] - Optional public key for verification.
      * @returns {import('./schema.js').P2PMessage}
      */
-    static createChat(sender, text, topic = 'global') {
-        return this.#createBaseMessage('CHAT', sender, text, { topic });
+    static createChat(sender, text, topic = 'global', senderPublicKey = null) {
+        return this.#createBaseMessage('CHAT', sender, text, { topic, senderPublicKey });
     }
 
     /**

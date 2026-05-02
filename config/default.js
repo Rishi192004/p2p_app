@@ -48,7 +48,12 @@ export default {
     /**
      * Default port for the WebSocket server.
      */
-    DEFAULT_PORT: 8080,
+    PORT: process.env.PORT ? parseInt(process.env.PORT) : 8080,
+    
+    /**
+     * Peer Identity
+     */
+    PEER_ID: process.env.PEER_ID || null,
 
     /**
      * Maximum number of active outbound peer connections allowed.
@@ -64,6 +69,12 @@ export default {
      * Maximum delay cap for exponential backoff (30 seconds).
      */
     MAX_RECONNECT_DELAY_MS: 30000,
+    
+    /**
+     * Rate Limiting
+     */
+    RATE_LIMIT_CAPACITY: process.env.RATE_LIMIT_CAPACITY ? parseInt(process.env.RATE_LIMIT_CAPACITY) : 20,
+    RATE_LIMIT_REFILL_RATE: process.env.RATE_LIMIT_REFILL_RATE ? parseInt(process.env.RATE_LIMIT_REFILL_RATE) : 5,
 
     /**
      * Maximum number of consecutive retry attempts before marking connection failed.

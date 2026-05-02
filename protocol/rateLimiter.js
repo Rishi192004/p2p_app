@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { createLogger } from '../utils/logger.js';
 import collector from '../metrics/collector.js';
+import config from '../config/default.js';
 
 const logger = createLogger('rateLimiter');
 
@@ -38,8 +39,8 @@ export class RateLimiter extends EventEmitter {
     constructor() {
         super();
         
-        this.capacity = 20;
-        this.refillRatePerSec = 5;
+        this.capacity = config.RATE_LIMIT_CAPACITY || 20;
+        this.refillRatePerSec = config.RATE_LIMIT_REFILL_RATE || 5;
         
         /**
          * Token bucket state per peer.

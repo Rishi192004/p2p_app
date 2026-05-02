@@ -120,8 +120,8 @@ If you are studying this codebase, focus on these seven patterns:
 - **Crypto**: `sodium-native` (libsodium)
 - **Discovery**: `mdns-js` (Local) + PEX (Gossip)
 - **Observability**: `pino` (Logging) + In-memory Reservoir Metrics
-- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, Spam Protection, E2E Encryption, Multi-Vector Discovery, and Production Observability are **Production-Ready**. 
-- **Next Steps**: Implementing a UI client and formalizing the NAT Traversal (STUN/TURN) layer.
+- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, Spam Protection, E2E Encryption, Multi-Vector Discovery, Production Observability, and Interactive CLI Client are **Production-Ready**. 
+- **Next Steps**: Implementing automated NAT Traversal (STUN/TURN) and formalizing the decentralized "Web of Trust" for identity verification.
 
 ---
 *Created by: Senior Architectural Lead*
