@@ -2,6 +2,7 @@
 
 ## Objective
 A decentralized peer-to-peer (P2P) chat application designed to allow users to communicate without a central server, using direct connections between peers.
+**Repository**: [https://github.com/Rishi192004/p2p_app](https://github.com/Rishi192004/p2p_app)
 
 ## Architecture Overview
 The application follows a distributed architecture where each "node" acts as both a client and a server. It uses a gossip-style message propagation mechanism to ensure messages reach all participants in the network.
