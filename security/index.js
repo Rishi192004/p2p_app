@@ -1,8 +1,9 @@
 import { KeyManager } from './keyManager.js';
 import { Encryptor } from './encryptor.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
+import collector from '../metrics/collector.js';
 
-const logger = pino({ name: 'security' });
+const logger = createLogger('security');
 
 /**
  * Security Integration Module
@@ -46,7 +47,6 @@ const logger = pino({ name: 'security' });
 export class SecurityManager {
     constructor() {
         this.keyManager = new KeyManager();
-        this.metrics = { invalid_signature_count: 0 };
         
         // Maps peerId to their base64 public key (learned during HELLO handshake)
         this.peerPublicKeys = new Map();
@@ -91,7 +91,7 @@ export class SecurityManager {
      */
     verifyIncomingMessage(message) {
         if (!message.signature) {
-            this.metrics.invalid_signature_count++;
+            collector.increment('invalid_signature_count');
             logger.warn({ event: 'signature_missing', id: message.id, sender: message.sender });
             return false;
         }
@@ -116,7 +116,7 @@ export class SecurityManager {
         const isValid = this.keyManager.verify(payloadToVerify, message.signature, senderPublicKey);
         
         if (!isValid) {
-            this.metrics.invalid_signature_count++;
+            collector.increment('invalid_signature_count');
             logger.error({ event: 'signature_invalid', id: message.id, sender: message.sender });
         }
 

@@ -1,7 +1,7 @@
-import pino from 'pino';
+import { createLogger } from '../../utils/logger.js';
 import { MessageFactory } from '../../protocol/messageFactory.js';
 
-const logger = pino({ name: 'bootstrapDiscovery' });
+const logger = createLogger('bootstrapDiscovery');
 
 /**
  * Bootstrap Discovery

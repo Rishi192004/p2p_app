@@ -1,10 +1,11 @@
 import { EventEmitter } from 'events';
 import config from '../config/default.js';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 import { RateLimiter } from './rateLimiter.js';
 import { TopicRouter } from './topicRouter.js';
+import collector from '../metrics/collector.js';
 
-const logger = pino({ name: 'gossipEngine' });
+const logger = createLogger('gossipEngine');
 
 /**
  * Core Gossip Protocol Engine
@@ -50,16 +51,6 @@ export class GossipEngine extends EventEmitter {
         
         this.rateLimiter = new RateLimiter();
         this.topicRouter = new TopicRouter();
-
-        // Metrics
-        this.metrics = { 
-            messages_received: 0,
-            messages_forwarded: 0, 
-            messages_dropped_ttl: 0, 
-            messages_dropped_duplicate: 0, 
-            messages_dropped_ratelimit: 0,
-            messages_dropped_invalid_signature: 0
-        };
     }
 
     /**
@@ -69,19 +60,19 @@ export class GossipEngine extends EventEmitter {
      * @param {string} fromPeerId 
      */
     receiveMessage(message, fromPeerId) {
-        this.metrics.messages_received++;
+        collector.increment('messages_received_total');
 
         // 1. Rate Limit Check
         // If fromPeerId is null (e.g. self-originated message), we bypass rate limiting.
         if (fromPeerId && !this.rateLimiter.checkLimit(fromPeerId)) {
-            this.metrics.messages_dropped_ratelimit++;
+            collector.increment('messages_dropped_ratelimit');
             return;
         }
 
         // 2. Signature Verification
         // If securityManager is provided, we verify the message signature.
         if (this.securityManager && !this.securityManager.verifyIncomingMessage(message)) {
-            this.metrics.messages_dropped_invalid_signature++;
+            collector.increment('invalid_signature_count');
             return;
         }
 
@@ -93,7 +84,7 @@ export class GossipEngine extends EventEmitter {
         // 2. Deduplication Check
         if (this.seenMessages.has(message.id)) {
             // If seen: drop silently, log metric
-            this.metrics.messages_dropped_duplicate++;
+            collector.increment('messages_dropped_duplicate');
             logger.debug({ event: 'message_dropped', reason: 'duplicate', id: message.id });
             return;
         }
@@ -107,7 +98,7 @@ export class GossipEngine extends EventEmitter {
         if (message.ttl > 0) {
             this.forwardMessage(message, fromPeerId);
         } else {
-            this.metrics.messages_dropped_ttl++;
+            collector.increment('messages_dropped_ttl');
             logger.debug({ event: 'message_dropped', reason: 'ttl_expired', id: message.id });
         }
 
@@ -167,7 +158,7 @@ export class GossipEngine extends EventEmitter {
         const finalExcludeList = allActivePeers.filter(p => !selectedPeers.has(p));
 
         this.connectionPool.broadcast(message, finalExcludeList);
-        this.metrics.messages_forwarded++;
+        collector.increment('messages_forwarded_total');
     }
 
     // --- Topic Router Proxies ---

@@ -57,7 +57,16 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Security Manager**: Orchestrates message signing and verification. 
     - **Integrity**: Every gossip message is signed. A peer cannot modify a message while forwarding it without invalidating the signature.
 
-### E. Storage Layer (`storage/`)
+### E. Observability Layer (`metrics/` & `utils/logger.js`)
+*Focus: System Health & Performance Visibility*
+- **Metrics Collector**: In-memory store for Counters, Gauges, and Histograms.
+    - **Senior Secret - Reservoir Sampling**: We use a fixed-size buffer for histograms to ensure memory usage is O(1) regardless of traffic volume.
+    - **Senior Rationale - p99 over Averages**: We focus on the 99th percentile for latency. Averages hide the "worst-case" experience that defines production stability.
+- **Structured Logging**: Uses `pino` for JSON-formatted logs.
+    - **Tradeoff**: JSON logs are slightly larger than text, but they are machine-parseable, enabling network-wide event tracing in tools like Datadog or ELK.
+- **Metrics Reporter**: Exposes a Prometheus-compatible HTTP endpoint (`/metrics`) and a `/health` check.
+
+### F. Storage Layer (`storage/`)
 *Focus: Data Durability & Range Scans*
 - **LevelDB**: An embedded LSM-tree database.
 - **Composite Keys**: `msg:{topic}:{lamportTimestamp}:{messageId}`.
@@ -65,7 +74,7 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Batching Strategy**: We buffer writes (50 msgs / 100ms).
     - **Tradeoff**: Durability vs. Performance. A crash might lose 100ms of data, but disk longevity and write throughput increase by 10x.
 
-### F. Sync Manager (`storage/syncManager.js`)
+### G. Sync Manager (`storage/syncManager.js`)
 *Focus: Partition Resolution*
 - **Log Replay**: When a peer reconnects, we don't send the whole database. We use the last known Lamport time to perform a "Delta Sync."
 - **Rate Limiting**: Syncing 10,000 missed messages at once would kill the connection. We use "Burst-and-Pause" logic to maintain transport stability.
@@ -86,12 +95,13 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 | **Impersonation** | **Ed25519 Signatures** | Proves the message originated from the claimed sender without revealing the secret key. |
 | **Eavesdropping** | **XSalsa20-Poly1305** | Ensures that only the intended recipient(s) can read the message content. |
 | **Topology Growth** | **Layered Discovery** | Combines mDNS (LAN), Bootstrap (WAN Entry), and PEX (Gossip) for robust connectivity. |
+| **Blind Spots** | **Reservoir Metrics** | Provides O(1) memory footprint for tracking performance percentiles (p50/p95/p99). |
 
 ---
 
 ## 4. Junior Dev Study Guide
 
-If you are studying this codebase, focus on these six patterns:
+If you are studying this codebase, focus on these seven patterns:
 
 1.  **Idempotency**: Notice how `gossipEngine.receiveMessage` can be called multiple times with the same message, but only "processes" it once. This is the foundation of reliable distributed systems.
 2.  **Backpressure**: Look at the `syncManager` rate limiting and Token Bucket. In production, the fastest way to break a system is to send data faster than the receiver can process it.
@@ -99,6 +109,7 @@ If you are studying this codebase, focus on these six patterns:
 4.  **Adaptive Defenses**: Study the `RateLimiter` banning logic. Note the tradeoff: we ban by `peerId` to mitigate NAT issues, but acknowledge that "Identity is Cheap" (Sybil attacks).
 5.  **Signature Chaining**: Observe that forwarded messages remain signed by the *originator*, not the *forwarder*. This allows trust to propagate across untrusted hops.
 6.  **Staggered Reconnection**: Study `BootstrapDiscovery`'s jitter implementation. Understand why randomizing timing is better for server health than fixed intervals.
+7.  **Observability-First Design**: Note how metrics are recorded *inline* with business logic. You cannot manage what you do not measure.
 
 ---
 
@@ -108,7 +119,8 @@ If you are studying this codebase, focus on these six patterns:
 - **DB**: LevelDB (Embedded)
 - **Crypto**: `sodium-native` (libsodium)
 - **Discovery**: `mdns-js` (Local) + PEX (Gossip)
-- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, Spam Protection, E2E Encryption, and Multi-Vector Discovery are **Production-Ready**. 
+- **Observability**: `pino` (Logging) + In-memory Reservoir Metrics
+- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, Spam Protection, E2E Encryption, Multi-Vector Discovery, and Production Observability are **Production-Ready**. 
 - **Next Steps**: Implementing a UI client and formalizing the NAT Traversal (STUN/TURN) layer.
 
 ---

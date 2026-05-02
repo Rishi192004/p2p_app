@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import config from '../config/default.js';
+import collector from '../metrics/collector.js';
 
 /**
  * Manages pending acknowledgments for critical messages to ensure reliable delivery.
@@ -32,6 +33,7 @@ export class AckManager extends EventEmitter {
             message,
             attempts: 1,
             peers: new Set(peerIds), // Set over Array: O(1) removal when an ACK is received
+            startTime: Date.now(),
             timer: null
         };
 
@@ -73,6 +75,7 @@ export class AckManager extends EventEmitter {
         if (entry.attempts >= config.MAX_RETRY_ATTEMPTS) {
             // Failed
             this.pendingAcks.delete(messageId);
+            collector.increment('delivery_failed_total');
             this.emit('delivery:failed', { messageId, failedPeers: Array.from(entry.peers) });
         } else {
             // Retry
@@ -100,6 +103,9 @@ export class AckManager extends EventEmitter {
                 if (entry.peers.size === 0) {
                     // Everyone acknowledged
                     clearTimeout(entry.timer);
+                    const latency = Date.now() - entry.startTime;
+                    collector.record('message_latency_ms', latency);
+                    collector.increment('delivery_confirmed_total');
                     this.pendingAcks.delete(messageId);
                     this.emit('delivery:confirmed', messageId);
                 }

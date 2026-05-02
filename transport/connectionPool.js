@@ -1,9 +1,9 @@
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 import { WSClient } from './wsClient.js';
 import config from '../config/default.js';
 import { EventEmitter } from 'events';
 
-const logger = pino({ name: 'connectionPool' });
+const logger = createLogger('connectionPool');
 
 export class ConnectionPool extends EventEmitter {
     constructor(localPeerId, localPublicKey = null) {

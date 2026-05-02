@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import state from './state.js';
+import collector from '../metrics/collector.js';
 
 /**
  * Peer Lifecycle Management
@@ -57,6 +58,8 @@ export class PeerManager extends EventEmitter {
         this.connectionPool.disconnect(peerId);
         state.deletePeer(peerId);
         
+        collector.set('active_peers', state.getActivePeerCount());
+        
         // Structured payload
         this.emit('peer:removed', { peerId, timestamp: Date.now(), reason: 'Explicit removal or DEAD' });
     }
@@ -85,6 +88,8 @@ export class PeerManager extends EventEmitter {
             } else if (oldStatus === 'CONNECTING') {
                 this.emit('peer:active', { peerId, timestamp: Date.now(), reason: 'First heartbeat received' });
             }
+
+            collector.set('active_peers', state.getActivePeerCount());
         } else {
             state.setPeer(peerId, peerInfo);
         }

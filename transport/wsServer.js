@@ -1,8 +1,8 @@
 import { WebSocketServer } from 'ws';
 import { EventEmitter } from 'events';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = pino({ name: 'wsServer' });
+const logger = createLogger('wsServer');
 
 export class WSServer extends EventEmitter {
     constructor(port, localPeerId) {

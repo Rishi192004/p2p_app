@@ -1,7 +1,7 @@
 import sodium from 'sodium-native';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = pino({ name: 'encryptor' });
+const logger = createLogger('encryptor');
 
 /**
  * Encryptor

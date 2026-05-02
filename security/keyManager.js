@@ -1,9 +1,9 @@
 import sodium from 'sodium-native';
 import fs from 'fs/promises';
 import path from 'path';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 
-const logger = pino({ name: 'keyManager' });
+const logger = createLogger('keyManager');
 
 /**
  * Key Manager

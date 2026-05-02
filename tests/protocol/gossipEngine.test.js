@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { GossipEngine } from '../../protocol/gossipEngine.js';
 import { LamportClock } from '../../protocol/lamportClock.js';
 import { EventEmitter } from 'node:events';
+import collector from '../../metrics/collector.js';
 
 test('GossipEngine', async (t) => {
     const mockConnectionPool = {
@@ -15,13 +16,16 @@ test('GossipEngine', async (t) => {
         const engine = new GossipEngine(mockConnectionPool, clock);
         const msg = { id: 'msg-1', sender: 'node-A', ttl: 5, lamportTimestamp: 1 };
 
-        engine.receiveMessage(msg, 'neighbor-1');
-        assert.strictEqual(engine.metrics.messages_received, 1);
-        assert.strictEqual(engine.metrics.messages_dropped_duplicate, 0);
+        const beforeReceived = collector.getSnapshot().counters.messages_received_total || 0;
+        const beforeDropped = collector.getSnapshot().counters.messages_dropped_duplicate || 0;
 
         engine.receiveMessage(msg, 'neighbor-1');
-        assert.strictEqual(engine.metrics.messages_received, 2); // gets incremented every time
-        assert.strictEqual(engine.metrics.messages_dropped_duplicate, 1);
+        assert.strictEqual(collector.getSnapshot().counters.messages_received_total, beforeReceived + 1);
+        assert.strictEqual(collector.getSnapshot().counters.messages_dropped_duplicate || 0, beforeDropped);
+
+        engine.receiveMessage(msg, 'neighbor-1');
+        assert.strictEqual(collector.getSnapshot().counters.messages_received_total, beforeReceived + 2);
+        assert.strictEqual(collector.getSnapshot().counters.messages_dropped_duplicate, beforeDropped + 1);
     });
 
     await t.test('receiveMessage should decrement TTL and forward', () => {

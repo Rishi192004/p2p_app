@@ -1,9 +1,9 @@
 import WebSocket from 'ws';
 import { EventEmitter } from 'events';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 import config from '../config/default.js';
 
-const logger = pino({ name: 'wsClient' });
+const logger = createLogger('wsClient');
 
 export class WSClient extends EventEmitter {
     constructor(host, port, localPeerId, remotePeerId = null, localPublicKey = null) {

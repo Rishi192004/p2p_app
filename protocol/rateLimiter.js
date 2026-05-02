@@ -1,7 +1,8 @@
 import { EventEmitter } from 'events';
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
+import collector from '../metrics/collector.js';
 
-const logger = pino({ name: 'rateLimiter' });
+const logger = createLogger('rateLimiter');
 
 /**
  * Rate Limiter
@@ -61,9 +62,6 @@ export class RateLimiter extends EventEmitter {
         this.BAN_THRESHOLD = 10;
         this.VIOLATION_WINDOW_MS = 60 * 1000; // 60 seconds
         this.BAN_DURATION_MS = 5 * 60 * 1000; // 5 minutes
-        
-        // Metrics
-        this.metrics = { rate_limited_peer: 0 };
     }
 
     /**
@@ -115,7 +113,6 @@ export class RateLimiter extends EventEmitter {
         }
 
         // --- RATE LIMITED ---
-        this.metrics.rate_limited_peer++;
         this.emit('peer:rate_limited', peerId);
         logger.warn({ event: 'rate_limited', peerId });
         

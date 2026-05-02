@@ -1,6 +1,7 @@
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
+import collector from '../metrics/collector.js';
 
-const logger = pino({ name: 'messageStore' });
+const logger = createLogger('messageStore');
 
 /**
  * MessageStore handles persistent storage of P2P messages using LevelDB.
@@ -56,9 +57,12 @@ export class MessageStore {
         }
 
         const batch = this.writeBuffer.splice(0, this.writeBuffer.length);
+        const start = Date.now();
         try {
             await this.db.batch(batch);
-            logger.debug({ event: 'batch_flushed', count: batch.length });
+            const duration = Date.now() - start;
+            collector.record('storage_write_ms', duration);
+            logger.debug({ event: 'batch_flushed', count: batch.length, duration_ms: duration });
         } catch (error) {
             logger.error({ event: 'batch_flush_error', error: error.message });
         }

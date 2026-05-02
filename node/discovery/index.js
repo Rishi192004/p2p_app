@@ -1,9 +1,9 @@
-import pino from 'pino';
+import { createLogger } from '../../utils/logger.js';
 import { MDNSDiscovery } from './mdnsDiscovery.js';
 import { BootstrapDiscovery } from './bootstrapDiscovery.js';
 import { PeerExchange } from './peerExchange.js';
 
-const logger = pino({ name: 'discovery' });
+const logger = createLogger('discovery');
 
 /**
  * Discovery Orchestrator

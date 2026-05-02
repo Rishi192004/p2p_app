@@ -1,7 +1,7 @@
-import pino from 'pino';
+import { createLogger } from '../utils/logger.js';
 import { MessageFactory } from '../protocol/messageFactory.js';
 
-const logger = pino({ name: 'syncManager' });
+const logger = createLogger('syncManager');
 
 /**
  * SyncManager handles synchronization of missing messages when a peer reconnects.

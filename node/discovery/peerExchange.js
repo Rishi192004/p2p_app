@@ -1,7 +1,7 @@
-import pino from 'pino';
+import { createLogger } from '../../utils/logger.js';
 import state from '../state.js';
 
-const logger = pino({ name: 'peerExchange' });
+const logger = createLogger('peerExchange');
 
 /**
  * Peer Exchange (PEX)

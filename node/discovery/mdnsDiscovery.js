@@ -1,7 +1,7 @@
 import mdns from 'mdns-js';
-import pino from 'pino';
+import { createLogger } from '../../utils/logger.js';
 
-const logger = pino({ name: 'mdnsDiscovery' });
+const logger = createLogger('mdnsDiscovery');
 
 /**
  * mDNS Discovery
