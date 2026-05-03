@@ -6,11 +6,13 @@ const logger = createLogger('server');
 const peerId = process.env.PEER_ID || `node-${Math.floor(Math.random() * 1000)}`;
 const port = parseInt(process.env.PORT) || 8080;
 const bootstrapNodes = process.env.BOOTSTRAP ? process.env.BOOTSTRAP.split(',') : [];
+const dbPath = process.env.DB_PATH || `./storage/db-${peerId}`;
 
 const node = new P2PNode({
     peerId,
     port,
-    bootstrapNodes
+    bootstrapNodes,
+    dbPath
 });
 
 async function main() {

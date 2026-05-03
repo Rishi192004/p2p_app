@@ -1,0 +1,8 @@
+node_modules
+.git
+.DS_Store
+data
+storage/bench-*
+storage/db-*
+storage/demo-*
+storage/docker-*
