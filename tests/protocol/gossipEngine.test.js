@@ -8,7 +8,9 @@ import collector from '../../metrics/collector.js';
 test('GossipEngine', async (t) => {
     const mockConnectionPool = {
         outboundConnections: new Map(),
-        broadcast: (msg, exclude) => {}
+        inboundConnections: new Map(),
+        broadcast: (msg, exclude) => {},
+        getAllPeerIds: () => []
     };
 
     await t.test('receiveMessage should drop duplicates', () => {
@@ -32,7 +34,9 @@ test('GossipEngine', async (t) => {
         let broadcastCalled = false;
         const pool = {
             outboundConnections: new Map([['p1', {}], ['p2', {}]]),
-            broadcast: () => { broadcastCalled = true; }
+            inboundConnections: new Map(),
+            broadcast: () => { broadcastCalled = true; },
+            getAllPeerIds: () => ['p1', 'p2']
         };
         const clock = new LamportClock();
         const engine = new GossipEngine(pool, clock);
@@ -47,7 +51,9 @@ test('GossipEngine', async (t) => {
         let broadcastCalled = false;
         const pool = {
             outboundConnections: new Map([['p1', {}]]),
-            broadcast: () => { broadcastCalled = true; }
+            inboundConnections: new Map(),
+            broadcast: () => { broadcastCalled = true; },
+            getAllPeerIds: () => ['p1']
         };
         const clock = new LamportClock();
         const engine = new GossipEngine(pool, clock);

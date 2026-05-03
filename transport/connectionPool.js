@@ -160,6 +160,13 @@ export class ConnectionPool extends EventEmitter {
         ]);
         return Array.from(ids);
     }
+
+    /**
+     * Alias for getAllPeerIds for better semantic naming in CLI.
+     */
+    getActivePeers() {
+        return this.getAllPeerIds();
+    }
 }
 
 // === SYSTEM DESIGN NOTES ===

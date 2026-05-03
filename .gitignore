@@ -7,4 +7,5 @@ yarn-debug.log*
 yarn-error.log*
 .clinic/
 .autocannon/
-package-lock.json
+storage/db-*
+test_output.txt
