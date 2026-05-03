@@ -1,0 +1,20 @@
+{
+  "messageCount": 10000,
+  "durationMs": 2407,
+  "throughputMsgSec": "4154.55",
+  "metrics": {
+    "counters": {
+      "messages_received_total": 20000,
+      "messages_forwarded_total": 10000
+    },
+    "gauges": {},
+    "histograms": {
+      "storage_write_ms": {
+        "p50": 552,
+        "p95": 1278,
+        "p99": 1414,
+        "count": 800
+      }
+    }
+  }
+}

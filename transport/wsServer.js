@@ -62,6 +62,7 @@ export class WSServer extends EventEmitter {
                         const inboundClient = new EventEmitter();
                         inboundClient.remotePeerId = connectedPeerId;
                         inboundClient.send = (msg) => ws.send(JSON.stringify(msg));
+                        inboundClient.close = () => ws.close();
                         
                         // Local relay for this specific connection
                         const relay = (msg) => inboundClient.emit('message', msg);

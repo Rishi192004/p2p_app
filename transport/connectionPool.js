@@ -65,6 +65,9 @@ export class ConnectionPool extends EventEmitter {
         const peerId = client.remotePeerId;
         this.inboundConnections.set(peerId, client);
 
+        logger.info({ event: 'pool_inbound_connected', peerId }, 'Inbound peer added to pool');
+        this.emit('peer:connected', peerId);
+
         client.on('message', (msg) => {
             this.emit('message:received', msg, peerId);
         });
@@ -166,6 +169,22 @@ export class ConnectionPool extends EventEmitter {
      */
     getActivePeers() {
         return this.getAllPeerIds();
+    }
+
+    /**
+     * Closes all connections and clears the pool.
+     */
+    clear() {
+        for (const [peerId, client] of this.outboundConnections) {
+            client.disconnect();
+        }
+        this.outboundConnections.clear();
+
+        for (const [peerId, client] of this.inboundConnections) {
+            client.close();
+        }
+        this.inboundConnections.clear();
+        logger.info({ event: 'pool_cleared' }, 'Connection pool cleared');
     }
 }
 

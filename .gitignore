@@ -2,10 +2,11 @@ node_modules/
 .DS_Store
 .env
 data/
+storage/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .clinic/
 .autocannon/
-storage/db-*
 test_output.txt
+benchmark-results.json

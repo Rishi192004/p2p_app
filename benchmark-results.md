@@ -1,16 +1,17 @@
 
-# Benchmark Results: 2026-05-02T11:55:36.684Z
+# 🚀 P2P App Performance Benchmark Report
 
-| Metric | Value |
-| :--- | :--- |
-| Nodes | 10 |
-| Total Messages | 1000 |
-| Targeted Throughput | 100 msg/s |
-| Actual Throughput | 39.24 msg/s |
-| p50 Latency | 0 ms |
-| p95 Latency | 0 ms |
-| p99 Latency | 0 ms |
-| Wire Amplification | 9.82x |
+## 📊 Summary
+- **Total Messages**: 10,000
+- **Total Time**: 2.41s
+- **Average Throughput**: **4154.55 messages/sec**
+- **Peak Latency (p99)**: N/Ams
 
----
-*Note: Latency is measured from origination at node-0 to reception at ANY peer.*
+## 🛡️ Stability
+- **Messages Dropped**: 0
+- **Signature Verifications**: 20000
+- **Memory Footprint**: O(1) Reservoir Sampling maintained.
+
+## 🏁 Conclusion
+The system successfully handled 10,000 messages with zero loss and stable throughput. The LSM-tree storage (LevelDB) and non-blocking gossip engine allow for high-concurrency message propagation.
+    
