@@ -2,6 +2,8 @@
 
 A production-grade, decentralized peer-to-peer gossip system with end-to-end security, offline synchronization, and comprehensive observability.
 
+[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md)
+
 ## 🚀 Quick Start
 
 Run a local 5-node mesh demo with a single command:
