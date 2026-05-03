@@ -34,7 +34,7 @@ export class P2PNode extends EventEmitter {
             port: config.port || 8080,
             dbPath: config.dbPath || `./storage/db-${config.peerId || 'default'}`,
             bootstrapNodes: config.bootstrapNodes || [],
-            metricsPort: config.metricsPort || 9090,
+            metricsPort: config.metricsPort || (config.port + 10) || 8090,
             ...config
         };
 
