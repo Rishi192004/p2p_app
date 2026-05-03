@@ -2,7 +2,7 @@
 
 A production-grade, decentralized peer-to-peer gossip system with end-to-end security, offline synchronization, and comprehensive observability.
 
-[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md)
+[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md) | [**View Architecture Blueprint**](ARCHITECTURE_BLUEPRINT.md)
 
 ## 🚀 Quick Start
 
