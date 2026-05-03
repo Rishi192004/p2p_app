@@ -6,7 +6,12 @@ A production-grade, decentralized peer-to-peer gossip system with end-to-end sec
 
 ## 🚀 Quick Start
 
-Run a local 5-node mesh demo with a single command:
+The fastest way to evaluate the system is using Docker Compose. This spins up a 3-node distributed mesh automatically:
+```bash
+docker-compose up --build
+```
+
+Alternatively, run a local 5-node mesh demo via Node.js directly:
 ```bash
 npm install
 node scripts/demo.js

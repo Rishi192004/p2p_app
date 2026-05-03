@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # The Bootstrap/Genesis Node
+  node-alpha:
+    build: .
+    image: p2p-gossip-node
+    container_name: p2p-alpha
+    environment:
+      - PEER_ID=alpha
+      - PORT=8080
+    ports:
+      - "8080:8080"
+      # Expose metrics port
+      - "8090:8090"
+    volumes:
+      - ./storage/docker-alpha:/usr/src/app/storage
+
+  # A regular node connecting to alpha
+  node-beta:
+    build: .
+    image: p2p-gossip-node
+    container_name: p2p-beta
+    environment:
+      - PEER_ID=beta
+      - PORT=8081
+      # Connect to alpha using Docker's internal DNS routing
+      - BOOTSTRAP=ws://node-alpha:8080
+    depends_on:
+      - node-alpha
+    ports:
+      - "8081:8081"
+      - "8091:8091"
+    volumes:
+      - ./storage/docker-beta:/usr/src/app/storage
+
+  # Another node connecting to both to form a mesh
+  node-gamma:
+    build: .
+    image: p2p-gossip-node
+    container_name: p2p-gamma
+    environment:
+      - PEER_ID=gamma
+      - PORT=8082
+      - BOOTSTRAP=ws://node-alpha:8080,ws://node-beta:8081
+    depends_on:
+      - node-alpha
+      - node-beta
+    ports:
+      - "8082:8082"
+      - "8092:8092"
+    volumes:
+      - ./storage/docker-gamma:/usr/src/app/storage
