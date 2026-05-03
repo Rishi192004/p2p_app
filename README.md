@@ -88,3 +88,8 @@ Modern elliptic curve signatures are smaller (64 bytes) and significantly faster
 
 ---
 *Built for High-Scale Decentralized Communications.*
+
+
+
+<img width="5368" height="3155" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/4e6ec4fc-806b-4abe-94b8-cf8395185093" />
+
