@@ -5,6 +5,8 @@ import { RateLimiter } from './rateLimiter.js';
 import { TopicRouter } from './topicRouter.js';
 import collector from '../metrics/collector.js';
 
+import { pow } from '../utils/pow.js';
+
 const logger = createLogger('gossipEngine');
 
 /**
@@ -62,7 +64,15 @@ export class GossipEngine extends EventEmitter {
     receiveMessage(message, fromPeerId) {
         collector.increment('messages_received_total');
 
-        // 1. Rate Limit Check
+        // 1. Proof-of-Work Verification (Sybil Defense)
+        // Every message must solve a puzzle to prove computational effort.
+        if (!pow.verifyPuzzle(message.id, config.POW_DIFFICULTY, message.powNonce || 0)) {
+            collector.increment('messages_dropped_pow');
+            logger.warn({ event: 'message_dropped', reason: 'invalid_pow', id: message.id, from: fromPeerId });
+            return;
+        }
+
+        // 2. Rate Limit Check
         // If fromPeerId is null (e.g. self-originated message), we bypass rate limiting.
         if (fromPeerId && !this.rateLimiter.checkLimit(fromPeerId)) {
             collector.increment('messages_dropped_ratelimit');

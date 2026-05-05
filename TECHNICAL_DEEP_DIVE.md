@@ -16,6 +16,7 @@ The system follows a **Modular Layered Architecture**, ensuring separation of co
 
 *   **Transport Layer (WebSockets)**: Handles full-duplex communication. We chose WebSockets to enable future cross-compatibility between Node.js and Browser-based nodes.
 *   **Security Manager (libsodium)**: Intercepts all outgoing and incoming traffic to ensure cryptographic integrity (Ed25519) and confidentiality (XSalsa20-Poly1305).
+*   **PoW Engine (C++ / Node-API)**: A high-performance hashing layer that solves and verifies computational puzzles to prevent Sybil attacks.
 *   **Gossip Engine (Protocol Layer)**: The "brain" of the node. It manages the **Epidemic Propagation Strategy**, using `seenMessage` caches to prevent broadcast storms.
 *   **Storage Layer (LevelDB)**: An embedded LSM-tree database. This choice allows for high-performance range scans during state synchronization.
 *   **Node Orchestrator**: The central "glue" that wires these layers together, managing the lifecycle of the system.
@@ -43,12 +44,18 @@ We use a **Heartbeat Mechanism** to track peer health:
 - **SUSPECTED**: No heartbeat for 15s. The node remains in the pool but is avoided for gossip.
 - **DEAD**: Peer is disconnected and purged from the routing table.
 
+### E. Sybil Defense (Proof-of-Work)
+To prevent a single attacker from creating thousands of identities or flooding the network with messages, we implement **CPU-bound Puzzles**:
+- **Mechanism**: Every message ID must be hashed with a `nonce` such that the result satisfies a network-wide difficulty target.
+- **Cost**: This makes "Work" a prerequisite for "Voice," ensuring that network resources are distributed fairly among participants who spend physical energy (CPU cycles).
+
 ---
 
 ## 4. Implementation Details
 
 ### Tech Stack Rationale
 - **Node.js (ESM)**: Chosen for its non-blocking I/O, which is essential for handling thousands of concurrent WebSocket connections efficiently.
+- **Node-API (C++)**: We implemented a native addon for the PoW engine. This allows us to perform millions of hash checks per second—tasks that would otherwise block the Node.js event loop if done in pure JavaScript.
 - **sodium-native (libsodium)**: We chose this over the standard `crypto` module because Ed25519 is significantly faster and more secure for elliptic curve signatures.
 - **LevelDB**: Chosen because it is an **embedded** database. It removes the need for an external Redis/PostgreSQL instance, making every node fully self-contained.
 
@@ -100,7 +107,7 @@ We chose $k=3$ for a balance between **reliability** and **wire amplification**.
 ---
 
 ## 9. Bottlenecks & Limitations
-1. **Identity Management**: Current identities (peerIds) are cheap to generate, leaving the system vulnerable to **Sybil Attacks**.
+1. **Sybil Defense Cost**: While PoW mitigates spam, it increases the energy cost of running a node. We use a **Hybrid Native/JS** approach to keep this overhead as low as possible for legitimate users.
 2. **NAT Traversal**: The system currently requires manual port forwarding or a public IP for WAN connectivity (STUN/TURN implementation is pending).
 3. **Storage Growth**: Since nodes act as full participants, storage grows linearly with network volume. We need a "Pruning Strategy" for old messages.
 

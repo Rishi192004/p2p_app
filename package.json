@@ -11,6 +11,7 @@
   "dependencies": {
     "level": "^8.0.1",
     "mdns-js": "^1.0.3",
+    "node-addon-api": "^8.7.0",
     "pino": "^8.16.2",
     "sodium-native": "^4.0.4",
     "uuid": "^9.0.1",

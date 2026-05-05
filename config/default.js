@@ -79,5 +79,11 @@ export default {
     /**
      * Maximum number of consecutive retry attempts before marking connection failed.
      */
-    MAX_RECONNECT_ATTEMPTS: 5
+    MAX_RECONNECT_ATTEMPTS: 5,
+
+    /**
+     * Sybil Defense: Proof-of-Work difficulty.
+     * Higher value = more CPU work required per message.
+     */
+    POW_DIFFICULTY: 500
 };

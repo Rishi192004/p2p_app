@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import config from '../config/default.js';
+import { pow } from '../utils/pow.js';
 
 /**
  * Message Factory
@@ -29,8 +30,14 @@ export class MessageFactory {
     static #createBaseMessage(type, sender, payload, options = {}) {
         this.#logicalClock++;
         
+        const id = uuidv4();
+        
+        // Solve Proof-of-Work puzzle for the message ID
+        // This makes "Identity" expensive and prevents Sybil/Spam attacks.
+        const workNonce = pow.solvePuzzle(id, config.POW_DIFFICULTY);
+
         return {
-            id: uuidv4(),
+            id,
             type,
             ttl: options.ttl ?? config.MAX_TTL,
             lamportTimestamp: this.#logicalClock,
@@ -38,7 +45,8 @@ export class MessageFactory {
             senderPublicKey: options.senderPublicKey || null,
             topic: options.topic ?? 'global',
             payload,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            powNonce: workNonce // Attach the solution
         };
     }
 

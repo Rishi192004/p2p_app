@@ -40,6 +40,9 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 ### C. Protocol Layer (`protocol/`)
 *Focus: Causal Order, Topic Scoping & Spam Defense*
 - **Gossip Engine**: Implements an **Epidemic Protocol**.
+- **Proof-of-Work (PoW) Engine**: A C++ native addon that implements a **Sybil Defense**.
+    - **Senior Rationale**: Every message must solve a "Message Puzzle" before broadcast. This forces an attacker to spend real CPU cycles (Work) for every spam message, making a DDoS attack economically and computationally expensive.
+    - **Hybrid Architecture**: We use a **C++ Native Addon (Node-API)** for 10-100x faster hashing, with an automatic **JavaScript Fallback** for cross-platform resilience.
 - **Topic Router**: Handles channel scoping via `Map<topic, Set<peerId>>`.
     - **Tradeoff - Gossip Topics vs Kafka**: We sacrifice strict delivery guarantees for zero-infrastructure scaling. Scoping reduces network chatter by creating interest-based "sub-graphs."
 - **Rate Limiter**: Implements a **Token Bucket** algorithm (20 capacity, 5/sec refill).
@@ -97,6 +100,7 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 | **Topology Growth** | **Layered Discovery** | Combines mDNS (LAN), Bootstrap (WAN Entry), and PEX (Gossip) for robust connectivity. |
 | **Blind Spots** | **Reservoir Metrics** | Provides O(1) memory footprint for tracking performance percentiles (p50/p95/p99). |
 | **Regressions** | **Automated Suite** | 91% code coverage ensures that adding new features doesn't break core distributed logic. |
+| **Sybil Attacks** | **C++ Hybrid PoW** | Forces computational "Work" for every message, making spam economically impossible. |
 
 ---
 
@@ -111,12 +115,14 @@ If you are studying this codebase, focus on these seven patterns:
 5.  **Signature Chaining**: Observe that forwarded messages remain signed by the *originator*, not the *forwarder*. This allows trust to propagate across untrusted hops.
 6.  **Staggered Reconnection**: Study `BootstrapDiscovery`'s jitter implementation. Understand why randomizing timing is better for server health than fixed intervals.
 7.  **Observability-First Design**: Note how metrics are recorded *inline* with business logic. You cannot manage what you do not measure.
+8.  **Graceful Degradation**: Study the `utils/pow.js` wrapper. Notice how it detects a missing C++ binary and seamlessly switches to a JS fallback. This is critical for "Production-Grade" software that must run on diverse environments.
 
 ---
 
 ## 5. Technical Stack & Implementation Status
 
 - **Runtime**: Node.js (ESM)
+- **Native Addons**: C++ (Node-API) for PoW performance.
 - **DB**: LevelDB (Embedded)
 - **Crypto**: `sodium-native` (libsodium)
 - **Discovery**: `mdns-js` (Local) + PEX (Gossip)
