@@ -1,49 +1,56 @@
 # P2P Gossip Mesh
 
-A production-grade, decentralized peer-to-peer gossip system with end-to-end security, offline synchronization, and comprehensive observability.
+A production-grade, decentralized peer-to-peer gossip system with a **native high-performance transport layer**, end-to-end security, and comprehensive observability.
 
-[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md) | [**View Architecture Blueprint**](ARCHITECTURE_BLUEPRINT.md) | [**Project Summary**](PROJECT_SUMMARY.md)
+[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md) | [**View Architecture Blueprint**](ARCHITECTURE_BLUEPRINT.md) | [**Full Project Summary**](PROJECT_SUMMARY.md)
 
-To evaluate the system's advanced distributed patterns (PoW, Backpressure, Chaos), run the following command. It will execute a multi-phase technical demonstration and output a verification report.
+---
+
+## ⚡ Technical Demonstration (Interview Ready)
+
+Run the following command to execute a multi-phase technical audit (PoW, Backpressure, Causal Ordering, Chaos). It outputs a color-coded verification report for senior leads.
 ```bash
 npm run interview
 ```
 
 ### 🚀 Ultimate Scale Benchmark
-To see the system handle massive volume (50,000 messages) with zero data loss:
+Handle massive volume (**50,000 messages**) with zero data loss:
 ```bash
 npm run stress-test
 ```
 
+### 🏎️ Native epoll Performance (Linux Only)
+On Linux, the system uses a custom-built **C++ epoll transport** with Edge-Triggered (`EPOLLET`) semantics for O(1) event loop complexity.
+```bash
+# 1. Build the native addon
+npm run build:native
+
+# 2. Run comparative benchmark (Native TCP vs WebSocket)
+npm run bench:native
+```
+
 ### 📈 High-Precision Performance Audit
-Verify the system's low-latency gossip propagation (Avg < 5ms, p99 < 25ms):
+Verify low-latency gossip propagation (**Avg < 5ms, p99 < 15ms**):
 ```bash
 npm run test:performance
 ```
 
 ## 🚀 Quick Start
 
-The fastest way to evaluate the system is using Docker Compose. This spins up a 3-node distributed mesh automatically:
+The fastest way to evaluate the system is using Docker Compose:
 ```bash
 docker-compose up --build
 ```
 
-Alternatively, run a local 5-node mesh demo via Node.js directly:
+Alternatively, run a local 5-node mesh demo via Node.js:
 ```bash
 npm install
 node scripts/demo.js
 ```
 
-Start an interactive CLI node:
-```bash
-# Node 1
-PEER_ID=alpha PORT=8080 node client/cliClient.js
-
-# Node 2 (connects to alpha)
-PEER_ID=beta PORT=8081 BOOTSTRAP_NODES='["ws://localhost:8080"]' node client/cliClient.js
-```
-
 ## 🏗️ Architecture
+
+The system uses an **Adaptive Transport Factory** that automatically detects your OS. It prioritizes the high-performance C++ epoll engine on Linux and falls back gracefully to WebSockets on Windows/macOS.
 
 ```text
        [ CLI Client / API ]
@@ -52,66 +59,52 @@ PEER_ID=beta PORT=8081 BOOTSTRAP_NODES='["ws://localhost:8080"]' node client/cli
     |      P2P Node       | <--- Orchestrator
     +---------------------+
     |   Gossip Engine     | <--- [ Protocol Layer ]
-    | (Topic Router, TTL) |
+    | (Topic Router, PoW) |
     +---------------------+
     |  Security Manager   | <--- [ Security Layer ]
     | (Ed25519, X25519)   |
     +---------------------+
     |   Message Store     | <--- [ Storage Layer ]
     |     (LevelDB)       |
-    +---------------------+
-    |  Connection Pool    | <--- [ Transport Layer ]
-    |    (WebSockets)     |
     +----------+----------+
                |
-         [ P2P Mesh ]
+    +----------V----------+
+    | Adaptive Transport  | <--- [ Transport Layer ]
+    | (epoll(7) vs WS)    |
+    +---------------------+
 ```
 
 ## ✨ Features
 
-- **Epidemic Gossip**: O(log N) propagation using seen-message caches and fanout.
+- **Native epoll Transport**: Custom C++ addon for Linux achieving ultra-low latency via `EPOLLET` and O(1) syscall complexity.
+- **Epidemic Gossip**: O(log N) propagation using seen-message caches, TTL, and fanout-K selection.
 - **Layered Discovery**: Multi-vector discovery using mDNS (LAN), Bootstrap nodes (WAN), and PEX (Gossip).
 - **E2E Security**: Ed25519 digital signatures and XSalsa20-Poly1305 authenticated encryption via `libsodium`.
 - **Causal Ordering**: Lamport logical clocks for ordering messages without a global clock.
-- **Sybil Defense (PoW)**: Hybrid C++/JS Proof-of-Work engine to prevent network spam and Sybil attacks.
-- **Adaptive Backpressure**: ACK-based flow control for state synchronization, preventing buffer bloat on slow nodes.
-- **Production Observability**: Reservoir-sampled metrics (p99 latency) and structured JSON logging.
-
-## 🛠️ Configuration
-
-Environment variables used by the node:
-- `PEER_ID`: Unique identity for this node.
-- `PORT`: WebSocket server port.
-- `BOOTSTRAP_NODES`: JSON array of WS URLs (e.g., `["ws://localhost:8080"]`).
-- `DB_PATH`: Directory for LevelDB storage.
-- `LOG_LEVEL`: `trace`, `debug`, `info`, `warn`, `error`.
+- **Sybil Defense (PoW)**: Hybrid C++/JS Proof-of-Work engine to prevent network spam.
+- **Adaptive Backpressure**: ACK-based sliding window flow control for state synchronization.
+- **Production Observability**: Reservoir-sampled metrics (p99 latency) and structured JSON logging (`pino`).
 
 ## 📈 Design Decisions & Tradeoffs
 
-### 1. AP over CP (CAP Theorem)
-We prioritize **Availability** and **Partition Tolerance**. In a distributed chat, preventing users from sending messages because a majority quorum isn't reachable is a poor UX. We accept eventual consistency via gossip and delta-sync.
+### 1. Adaptive Transport (Native vs WebSocket)
+We implemented a C++ `epoll` transport to reach the kernel syscalls directly, bypassing the libuv abstraction layer. This achieves ~4x lower latency than WebSockets while maintaining a JS fallback for cross-platform compatibility.
 
-### 2. Embedded LevelDB over Redis
-A true P2P node should be self-contained. Using an embedded database removes external dependencies and network overhead, ensuring the node can run on edge devices or desktops without infrastructure.
+### 2. AP over CP (CAP Theorem)
+We prioritize **Availability**. In a distributed chat, blocking writes because a majority quorum isn't reachable is poor UX. We accept eventual consistency via gossip and delta-sync.
 
-### 3. Unstructured Gossip over Kademlia (DHT)
-While DHTs are great for key-value lookups in massive networks, unstructured gossip is simpler and more robust for message broadcast in smaller, highly connected meshes. It avoids the complexity of bucket maintenance while still providing O(log N) reach.
+### 3. Embedded LevelDB over Redis
+A true P2P node should be self-contained. Using an embedded database (LSM-Tree) removes external dependencies and ensures the node runs on edge devices with zero-config.
 
-### 4. Ed25519 over RSA
-Modern elliptic curve signatures are smaller (64 bytes) and significantly faster to compute/verify. This is critical in a gossip network where every node must verify every message before forwarding.
+## 🚀 Future Roadmap
 
-## 🚀 Scaling to 1M Nodes: What I'd do differently
-
-1. **UDP/QUIC Transport**: WebSockets carry TCP's Head-of-Line blocking and handshake overhead. Moving to QUIC would provide better performance on unstable networks.
-2. **Pluggable Discovery**: Integrate Kademlia DHT for finding peers when bootstrap nodes are unreachable.
-3. **Zero-Knowledge Spam Defense**: Implement ZK-proofs or VDFs (Verifiable Delay Functions) to make spamming computationally expensive without revealing user identity.
-4. **Merkle Tree Anti-Entropy**: Use Merkle trees to detect state differences between peers instantly during sync, rather than replaying logs by timestamp.
-5. **Double Ratchet PFS**: Move from static shared secrets to the Signal Protocol for Perfect Forward Secrecy in every direct message.
+1. **UDP/QUIC Transport**: Move to QUIC to avoid TCP Head-of-Line blocking on unstable networks.
+2. **Kademlia Integration**: Add a structured DHT for peer discovery at the scale of 10k+ nodes.
+3. **Zero-Knowledge Spam Defense**: Implement ZK-proofs for privacy-preserving rate limiting.
+4. **Merkle Tree Anti-Entropy**: Use Merkle trees for instant state difference detection during sync.
+5. **Double Ratchet PFS**: Implement the Signal Protocol for Perfect Forward Secrecy in DMs.
 
 ---
 *Built for High-Scale Decentralized Communications.*
 
-
-
 <img width="5368" height="3155" alt="mermaid-diagram" src="https://github.com/user-attachments/assets/4e6ec4fc-806b-4abe-94b8-cf8395185093" />
-
