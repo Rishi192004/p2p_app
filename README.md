@@ -2,7 +2,14 @@
 
 A production-grade, decentralized peer-to-peer gossip system with end-to-end security, offline synchronization, and comprehensive observability.
 
-[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md) | [**View Architecture Blueprint**](ARCHITECTURE_BLUEPRINT.md)
+[**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md) | [**View Architecture Blueprint**](ARCHITECTURE_BLUEPRINT.md) | [**Project Summary**](PROJECT_SUMMARY.md)
+
+## 🎯 Senior Interviewer Demo
+To evaluate the system's advanced distributed patterns (PoW, Backpressure, Chaos), run the following command. It will execute a multi-phase technical demonstration and output a verification report.
+
+```bash
+npm run interview
+```
 
 ## 🚀 Quick Start
 

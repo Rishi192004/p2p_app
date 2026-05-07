@@ -7,11 +7,13 @@ import collector from '../metrics/collector.js';
 
 async function runTest() {
     const dbPath = './test-db-backpressure';
+    await fs.rm(dbPath, { recursive: true, force: true }).catch(() => {});
     await fs.mkdir(path.dirname(dbPath), { recursive: true }).catch(() => {});
+    
     const db = new Level(dbPath);
     const messageStore = new MessageStore(db);
 
-    // 1. Setup: Create 250 messages (3 batches of 100, 100, 50)
+    // 1. Setup: Create 250 messages
     for (let i = 0; i < 250; i++) {
         await messageStore.save({
             id: `msg-${i}`,
@@ -37,9 +39,8 @@ async function runTest() {
 
     const syncManager = new SyncManager(db, messageStore, mockGossipEngine, mockConnectionPool, 'node-1');
 
-    console.log('--- Starting Backpressure Test ---');
-    console.log('Target: Sync 250 messages in 3 batches.');
-    console.log('Simulated Receiver Latency: 100ms per batch.');
+    console.log(`${COLORS.cyan}[SYNC ]${COLORS.reset} Initializing sync for 250 messages (3 batches).`);
+    console.log(`${COLORS.yellow}[FLOW ]${COLORS.reset} Simulating 100ms processing delay per batch...`);
 
     const start = Date.now();
     await syncManager.onPeerReconnected('node-2');
@@ -48,20 +49,28 @@ async function runTest() {
     const duration = end - start;
     const metrics = collector.getSnapshot();
 
-    console.log('\n--- Test Results ---');
-    console.log(`Total Sync Duration: ${duration}ms`);
-    console.log(`Batches Sent: ${metrics.counters.sync_batches_sent_total}`);
-    console.log(`ACKs Received: ${metrics.counters.sync_acks_received_total}`);
+    console.log(`\n📊 ${COLORS.bright}Flow Control Metrics:${COLORS.reset}`);
+    console.log(`  - Total Sync Duration: ${COLORS.cyan}${duration}ms${COLORS.reset}`);
+    console.log(`  - Batches Acknowledged: ${COLORS.green}${metrics.counters.sync_acks_received_total}${COLORS.reset}`);
     
-    // Check if backpressure worked: 3 batches * 100ms = 300ms minimum
     if (duration >= 300) {
-        console.log('\n✅ SUCCESS: Flow control enforced. Sender waited for receiver ACKs.');
+        console.log(`\n✅ ${COLORS.green}Success: Backpressure enforced. Sender successfully throttled.${COLORS.reset}`);
     } else {
-        console.log('\n❌ FAILURE: Flow control failed. Sender moved too fast.');
+        console.log(`\n❌ ${COLORS.red}Failure: Flow control failed. Sender moved too fast.${COLORS.reset}`);
     }
 
     await db.close();
-    await fs.rm(dbPath, { recursive: true, force: true });
+    await fs.rm(dbPath, { recursive: true, force: true }).catch(() => {});
 }
+
+const COLORS = {
+    reset: "\x1b[0m",
+    bright: "\x1b[1m",
+    green: "\x1b[32m",
+    yellow: "\x1b[33m",
+    cyan: "\x1b[36m",
+    magenta: "\x1b[35m",
+    red: "\x1b[31m"
+};
 
 runTest().catch(console.error);
