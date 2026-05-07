@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node node/server.js",
     "test": "node --test tests/**/*.test.js",
-    "interview": "node scripts/interview_pro.js"
+    "interview": "node scripts/interview_pro.js",
+    "stress-test": "node tests/ultimate_50k.test.js"
   },
   "dependencies": {
     "level": "^8.0.1",

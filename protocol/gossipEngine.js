@@ -40,18 +40,20 @@ const logger = createLogger('gossipEngine');
  *    (O(1)), turning exponential broadcast storms into efficient linear propagation.
  */
 export class GossipEngine extends EventEmitter {
-    constructor(connectionPool, lamportClock, securityManager) {
+    constructor(connectionPool, lamportClock, securityManager, nodeConfig = {}) {
         super();
         this.connectionPool = connectionPool;
         this.lamportClock = lamportClock;
         this.securityManager = securityManager;
-        
-        // Data Structure Choice: Set over Array. Checking if an element exists in a Set
+        this.nodeConfig = nodeConfig;
         // is O(1), whereas an Array is O(N). Since we perform a lookup for every single 
         // incoming message, Set is drastically more efficient.
         this.seenMessages = new Set();
         
-        this.rateLimiter = new RateLimiter();
+        this.rateLimiter = new RateLimiter({
+            capacity: this.nodeConfig.rateLimitCapacity,
+            refillRate: this.nodeConfig.rateLimitRefillRate
+        });
         this.topicRouter = new TopicRouter();
     }
 

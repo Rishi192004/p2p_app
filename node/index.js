@@ -82,7 +82,7 @@ export class P2PNode extends EventEmitter {
         this.wsServer = new WSServer(this.config.port, this.config.peerId, localPublicKey);
         
         // Initialize Protocol
-        this.gossipEngine = new GossipEngine(this.connectionPool, this.lamportClock, this.securityManager);
+        this.gossipEngine = new GossipEngine(this.connectionPool, this.lamportClock, this.securityManager, this.config);
         this.ackManager = new AckManager(this.connectionPool, this.lamportClock);
         this.syncManager = new SyncManager(this.db, this.messageStore, this.gossipEngine, this.connectionPool, this.config.peerId);
         

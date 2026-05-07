@@ -36,11 +36,11 @@ const logger = createLogger('rateLimiter');
  * to make acquiring a valid `peerId` expensive.
  */
 export class RateLimiter extends EventEmitter {
-    constructor() {
+    constructor(options = {}) {
         super();
         
-        this.capacity = config.RATE_LIMIT_CAPACITY || 20;
-        this.refillRatePerSec = config.RATE_LIMIT_REFILL_RATE || 5;
+        this.capacity = options.capacity || config.RATE_LIMIT_CAPACITY || 20;
+        this.refillRatePerSec = options.refillRate || config.RATE_LIMIT_REFILL_RATE || 5;
         
         /**
          * Token bucket state per peer.

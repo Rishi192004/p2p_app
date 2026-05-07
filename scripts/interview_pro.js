@@ -11,7 +11,8 @@ const COLORS = {
     yellow: "\x1b[33m",
     cyan: "\x1b[36m",
     magenta: "\x1b[35m",
-    red: "\x1b[31m"
+    red: "\x1b[31m",
+    blue: "\x1b[34m"
 };
 
 async function runTest(name, command, args) {
