@@ -22,6 +22,7 @@ export class WSServer extends EventEmitter {
         });
 
         this.wss.on('connection', (ws, req) => {
+            req.socket.setNoDelay(true); // Disable Nagle's Algorithm
             const ip = req.socket.remoteAddress;
             logger.info({ event: 'connection_attempt', ip }, 'New incoming connection attempt');
 

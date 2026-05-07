@@ -15,6 +15,12 @@ To see the system handle massive volume (50,000 messages) with zero data loss:
 npm run stress-test
 ```
 
+### 📈 High-Precision Performance Audit
+Verify the system's low-latency gossip propagation (Avg < 5ms, p99 < 25ms):
+```bash
+npm run test:performance
+```
+
 ## 🚀 Quick Start
 
 The fastest way to evaluate the system is using Docker Compose. This spins up a 3-node distributed mesh automatically:

@@ -39,6 +39,7 @@ export class WSClient extends EventEmitter {
         this.ws = new WebSocket(this.url);
 
         this.ws.on('open', () => {
+            if (this.ws._socket) this.ws._socket.setNoDelay(true); // Disable Nagle's Algorithm
             logger.info({ event: 'connected', url: this.url, targetPeerId: this.remotePeerId }, 'Successfully connected to peer');
             this.isConnected = true;
             this.reconnectAttempts = 0;
