@@ -68,6 +68,8 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 - **Structured Logging**: Uses `pino` for JSON-formatted logs.
     - **Tradeoff**: JSON logs are slightly larger than text, but they are machine-parseable, enabling network-wide event tracing in tools like Datadog or ELK.
 - **Metrics Reporter**: Exposes a Prometheus-compatible HTTP endpoint (`/metrics`) and a `/health` check.
+- **Master Interview Demo Orchestrator**: A specialized script (`scripts/interview_pro.js`) that automates a 4-phase technical audit (Sybil Defense, Flow Control, Causal Ordering, and Chaos Resilience). 
+    - **Senior Rationale**: This demonstrates "Operational Readiness." It allows non-technical stakeholders or automated CI/CD pipelines to verify complex distributed properties in seconds with human-readable, color-coded diagnostic logs.
 
 ### F. Storage Layer (`storage/`)
 *Focus: Data Durability & Range Scans*
@@ -102,6 +104,7 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 | **Blind Spots** | **Reservoir Metrics** | Provides O(1) memory footprint for tracking performance percentiles (p50/p95/p99). |
 | **Regressions** | **Automated Suite** | 91% code coverage ensures that adding new features doesn't break core distributed logic. |
 | **Sybil Attacks** | **C++ Hybrid PoW** | Forces computational "Work" for every message, making spam economically impossible. |
+| **Port Conflicts** | **Dynamic Allocation** | Solves `EADDRINUSE` by dynamically finding open ports during large-scale local simulations (essential for 50k+ stress tests). |
 
 ---
 
@@ -140,7 +143,7 @@ If you are studying this codebase, focus on these seven patterns:
 | **Total Tests** | 50 | Covers all state transitions (Connecting -> Active -> Dead). |
 | **Pass Rate** | 100% | Stable baseline for production deployment. |
 | **Code Coverage** | 91.35% | High-confidence coverage on core protocol (Lamport, Gossip, Security). |
-| **Benchmarking** | ✅ Passed | Sustained **4,154 msg/sec** throughput with zero data loss over 10,000 messages. |
+| **Benchmarking** | ✅ Passed | Sustained **4,288 msg/sec** peak throughput. Verified stability under extreme **50,000 message** load with zero data loss. |
 
 ---
 

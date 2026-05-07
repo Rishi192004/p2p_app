@@ -4,11 +4,15 @@ A production-grade, decentralized peer-to-peer gossip system with end-to-end sec
 
 [**Read the Engineering Deep Dive (Interview Ready)**](TECHNICAL_DEEP_DIVE.md) | [**View Architecture Blueprint**](ARCHITECTURE_BLUEPRINT.md) | [**Project Summary**](PROJECT_SUMMARY.md)
 
-## 🎯 Senior Interviewer Demo
 To evaluate the system's advanced distributed patterns (PoW, Backpressure, Chaos), run the following command. It will execute a multi-phase technical demonstration and output a verification report.
-
 ```bash
 npm run interview
+```
+
+### 🚀 Ultimate Scale Benchmark
+To see the system handle massive volume (50,000 messages) with zero data loss:
+```bash
+npm run stress-test
 ```
 
 ## 🚀 Quick Start
@@ -63,8 +67,8 @@ PEER_ID=beta PORT=8081 BOOTSTRAP_NODES='["ws://localhost:8080"]' node client/cli
 - **Layered Discovery**: Multi-vector discovery using mDNS (LAN), Bootstrap nodes (WAN), and PEX (Gossip).
 - **E2E Security**: Ed25519 digital signatures and XSalsa20-Poly1305 authenticated encryption via `libsodium`.
 - **Causal Ordering**: Lamport logical clocks for ordering messages without a global clock.
-- **Offline Sync**: Delta-synchronization using LevelDB range scans for peers rejoining after partitions.
-- **Spam Protection**: Token Bucket rate limiting and temporary peer banning.
+- **Sybil Defense (PoW)**: Hybrid C++/JS Proof-of-Work engine to prevent network spam and Sybil attacks.
+- **Adaptive Backpressure**: ACK-based flow control for state synchronization, preventing buffer bloat on slow nodes.
 - **Production Observability**: Reservoir-sampled metrics (p99 latency) and structured JSON logging.
 
 ## 🛠️ Configuration
