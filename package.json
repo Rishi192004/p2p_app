@@ -10,7 +10,9 @@
     "interview": "node scripts/interview_pro.js",
     "stress-test": "node tests/ultimate_50k.test.js",
     "bench:latency": "node scripts/latency_bench.js",
-    "test:performance": "node --test tests/performance.test.js"
+    "test:performance": "node --test tests/performance.test.js",
+    "build:native": "node-gyp configure && node-gyp build --target native_transport",
+    "bench:native": "node tests/native_bench.test.js"
   },
   "dependencies": {
     "level": "^8.0.1",
