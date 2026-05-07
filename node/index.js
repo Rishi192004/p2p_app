@@ -84,7 +84,7 @@ export class P2PNode extends EventEmitter {
         // Initialize Protocol
         this.gossipEngine = new GossipEngine(this.connectionPool, this.lamportClock, this.securityManager);
         this.ackManager = new AckManager(this.connectionPool, this.lamportClock);
-        this.syncManager = new SyncManager(this.db, this.messageStore, this.gossipEngine, this.connectionPool);
+        this.syncManager = new SyncManager(this.db, this.messageStore, this.gossipEngine, this.connectionPool, this.config.peerId);
         
         // Initialize Lifecycle
         this.peerManager = new PeerManager(this.connectionPool);
@@ -106,7 +106,9 @@ export class P2PNode extends EventEmitter {
             if (message.type === 'ACK') {
                 this.ackManager.receiveAck(message);
             } else if (message.type === 'SYNC_BATCH') {
-                this.syncManager.receiveSyncBatch(message.payload, fromPeerId);
+                this.syncManager.receiveSyncBatch(message, fromPeerId);
+            } else if (message.type === 'SYNC_ACK') {
+                this.syncManager.receiveSyncAck(message, fromPeerId);
             } else if (message.type === 'HELLO') {
                 // HELLO contains public key for security
                 this.securityManager.registerPeerKey(message.peerId, message.publicKey);

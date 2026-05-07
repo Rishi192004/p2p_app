@@ -121,4 +121,18 @@ export class MessageFactory {
     static createSyncBatch(sender, messages) {
         return this.#createBaseMessage('SYNC_BATCH', sender, JSON.stringify(messages), { ttl: 1 });
     }
+
+    /**
+     * Creates a SYNC_ACK message.
+     * 
+     * System Design Reason: Used for backpressure/flow control. The receiver 
+     * sends this after processing a batch to tell the sender it's ready for the next one.
+     * 
+     * @param {string} sender - Node sending the ack.
+     * @param {string} batchId - The ID of the SYNC_BATCH being acknowledged.
+     * @returns {import('./schema.js').P2PMessage}
+     */
+    static createSyncAck(sender, batchId) {
+        return this.#createBaseMessage('SYNC_ACK', sender, JSON.stringify({ batchId }), { ttl: 1 });
+    }
 }

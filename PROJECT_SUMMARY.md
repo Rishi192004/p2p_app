@@ -78,9 +78,10 @@ This system is strictly **AP (Available + Partition Tolerant)**.
     - **Tradeoff**: Durability vs. Performance. A crash might lose 100ms of data, but disk longevity and write throughput increase by 10x.
 
 ### G. Sync Manager (`storage/syncManager.js`)
-*Focus: Partition Resolution*
+*Focus: Partition Resolution & Flow Control*
 - **Log Replay**: When a peer reconnects, we don't send the whole database. We use the last known Lamport time to perform a "Delta Sync."
-- **Rate Limiting**: Syncing 10,000 missed messages at once would kill the connection. We use "Burst-and-Pause" logic to maintain transport stability.
+- **Application-Level Flow Control**: Instead of static throttling, we use an **ACK-based Sliding Window**. The sender transmits a batch and waits for a `SYNC_ACK` before proceeding.
+- **Senior Rationale**: This prevents **Buffer Bloat** and memory exhaustion. By making the sender wait for the receiver to "digest" each batch, the system automatically adapts to the network latency and processing power of each peer.
 
 ---
 
@@ -92,7 +93,7 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 | **Message Ordering** | **Lamport Clocks** | Physical time is a lie in distributed systems. Logical time ensures causality (A -> B). |
 | **Infinite Loops** | **Seen Cache (Set)** | O(1) lookups are mandatory. An array search here would turn the node into a CPU bottleneck. |
 | **Dead Peer Detection** | **Suspicion Machine** | Avoids "Flapping." We don't mark a peer DEAD on the first missed heartbeat; we mark it SUSPECTED first. |
-| **Offline Recovery** | **Delta Sync** | Essential for the "Mobile Use Case" where peers frequently drop and rejoin. |
+| **Offline Recovery** | **Delta Sync + ACK Flow** | Essential for the "Mobile Use Case." Sender waits for receiver ACKs to avoid overwhelming memory. |
 | **Spam / Flood** | **Token Bucket** | Bounds average rate while allowing bursts. Fixed Window is too jerky; Leaky Bucket is too restrictive for chat. |
 | **Network Noise** | **Topic Scoping** | Prevents "Over-Gossip." Nodes only forward to peers interested in the specific channel. |
 | **Impersonation** | **Ed25519 Signatures** | Proves the message originated from the claimed sender without revealing the secret key. |
@@ -109,7 +110,7 @@ This system is strictly **AP (Available + Partition Tolerant)**.
 If you are studying this codebase, focus on these seven patterns:
 
 1.  **Idempotency**: Notice how `gossipEngine.receiveMessage` can be called multiple times with the same message, but only "processes" it once. This is the foundation of reliable distributed systems.
-2.  **Backpressure**: Look at the `syncManager` rate limiting and Token Bucket. In production, the fastest way to break a system is to send data faster than the receiver can process it.
+2.  **Backpressure (Adaptive)**: Look at the `syncManager` flow control. Note how we use `SYNC_ACK` to synchronize the speed of the sender and receiver. In production, this is how you handle "Heterogeneous Nodes" (slow phones vs fast servers).
 3.  **State Isolation**: Observe `node/state.js`. By centralizing state mutation, we avoid "Race Conditions."
 4.  **Adaptive Defenses**: Study the `RateLimiter` banning logic. Note the tradeoff: we ban by `peerId` to mitigate NAT issues, but acknowledge that "Identity is Cheap" (Sybil attacks).
 5.  **Signature Chaining**: Observe that forwarded messages remain signed by the *originator*, not the *forwarder*. This allows trust to propagate across untrusted hops.

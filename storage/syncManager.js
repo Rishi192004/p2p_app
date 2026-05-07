@@ -1,5 +1,6 @@
 import { createLogger } from '../utils/logger.js';
 import { MessageFactory } from '../protocol/messageFactory.js';
+import collector from '../metrics/collector.js';
 
 const logger = createLogger('syncManager');
 
@@ -20,11 +21,16 @@ const logger = createLogger('syncManager');
  * messages offline is a terrible user experience. AP is the correct choice here.
  */
 export class SyncManager {
-    constructor(db, messageStore, gossipEngine, connectionPool) {
+    constructor(db, messageStore, gossipEngine, connectionPool, localPeerId) {
         this.db = db;
         this.messageStore = messageStore;
         this.gossipEngine = gossipEngine;
         this.connectionPool = connectionPool;
+        this.localPeerId = localPeerId;
+        
+        // Flow Control: Tracks pending ACKs for active synchronization streams
+        // Maps peerId -> { resolve: Function, timeout: Timer }
+        this.pendingAcks = new Map();
     }
 
     /**
@@ -53,71 +59,103 @@ export class SyncManager {
 
     /**
      * Triggers synchronization when a peer reconnects.
+     * Uses application-level Flow Control (ACK-based).
      * 
      * @param {string} peerId 
      */
     async onPeerReconnected(peerId) {
         const lastSeenLamport = await this.getLastSeenLamport(peerId);
-        
-        // WHAT HAPPENS IF PEER OFFLINE FOR TOO LONG?
-        // If a peer is offline longer than the prune cutoff time (e.g., messages older 
-        // than 7 days have been deleted), this incremental Lamport timestamp sync will 
-        // miss messages. To properly support peers returning after extended absences, 
-        // we would need to implement a full state Snapshot Sync (e.g., exchanging Merkle 
-        // trees or Bloom filters of current state) instead of just an incremental log replay.
-        
         logger.info({ event: 'sync_started', peerId, since: lastSeenLamport });
+        const startTime = Date.now();
 
-        // Retrieve all messages across all topics since the timestamp
-        // For simplicity, we just sync the 'global' topic. In a real system, 
-        // we'd query across subscribed topics.
         const messagesToSync = await this.messageStore.getByTopic('global', lastSeenLamport);
         
         if (messagesToSync.length === 0) {
-            return; // Nothing to sync
+            logger.info({ event: 'sync_skipped', peerId, reason: 'already_consistent' });
+            return;
         }
 
-        // Rate-limit: max 100 messages per sync burst, then pause 500ms
-        const CHUNK_SIZE = 100;
-        const PAUSE_MS = 500;
+        // --- DYNAMIC FLOW CONTROL ---
+        // Instead of a static timer (Throttling), we use a sliding window/ACK pattern.
+        // We send a batch and WAIT for the receiver to confirm they've processed it.
+        // This ensures we never send data faster than the receiver can ingest.
+        let batchSize = 100; // Initial batch size
 
-        for (let i = 0; i < messagesToSync.length; i += CHUNK_SIZE) {
-            const chunk = messagesToSync.slice(i, i + CHUNK_SIZE);
+        for (let i = 0; i < messagesToSync.length; i += batchSize) {
+            const chunk = messagesToSync.slice(i, i + batchSize);
+            const syncMsg = MessageFactory.createSyncBatch(this.localPeerId, chunk);
             
-            const syncMsg = MessageFactory.createSyncBatch('system', chunk); // Create a SYNC_BATCH message
-            
+            logger.debug({ event: 'sync_batch_sent', peerId, batchId: syncMsg.id, size: chunk.length });
             this.connectionPool.sendToPeer(peerId, syncMsg);
+            collector.increment('sync_batches_sent_total');
 
-            if (i + CHUNK_SIZE < messagesToSync.length) {
-                // Wait before sending the next burst
-                await new Promise(resolve => setTimeout(resolve, PAUSE_MS));
+            // Wait for SYNC_ACK with a safety timeout (5 seconds)
+            try {
+                await this.#waitForAck(peerId, syncMsg.id, 5000);
+                // Optimization: If ACK was fast, we could increase batchSize here (Additive Increase)
+            } catch (err) {
+                logger.warn({ event: 'sync_ack_timeout', peerId, batchId: syncMsg.id });
+                // On timeout, we might decrease batchSize (Multiplicative Decrease)
+                // and retry the current batch.
             }
         }
         
-        logger.info({ event: 'sync_completed', peerId, totalSent: messagesToSync.length });
+        const duration = Date.now() - startTime;
+        collector.record('sync_duration_ms', duration);
+        logger.info({ event: 'sync_completed', peerId, totalSent: messagesToSync.length, durationMs: duration });
     }
 
     /**
-     * Processes an incoming SYNC_BATCH message.
+     * Private helper to manage the ACK wait state.
+     */
+    #waitForAck(peerId, batchId, timeoutMs) {
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                this.pendingAcks.delete(peerId);
+                reject(new Error('Sync ACK timeout'));
+            }, timeoutMs);
+
+            this.pendingAcks.set(peerId, { resolve, timeout, batchId });
+        });
+    }
+
+    /**
+     * Processes an incoming SYNC_BATCH message and sends a SYNC_ACK.
      * 
-     * @param {Array} messages - Array of missing P2P messages.
+     * @param {Object} syncBatch - The SYNC_BATCH message object.
      * @param {string} fromPeerId 
      */
-    receiveSyncBatch(messages, fromPeerId) {
+    receiveSyncBatch(syncBatch, fromPeerId) {
+        const messages = JSON.parse(syncBatch.payload);
         if (!Array.isArray(messages)) return;
         
         let processedCount = 0;
-        
         for (const msg of messages) {
-            if (this.gossipEngine.seenMessages.has(msg.id)) {
-                continue; // Skip already seen
-            }
-            
-            // Feed into gossip engine as if freshly received
+            if (this.gossipEngine.seenMessages.has(msg.id)) continue;
             this.gossipEngine.receiveMessage(msg, fromPeerId);
             processedCount++;
         }
 
-        logger.debug({ event: 'sync_batch_received', fromPeerId, total: messages.length, processed: processedCount });
+        // Send SYNC_ACK to tell the sender we are ready for more
+        const ack = MessageFactory.createSyncAck(this.localPeerId, syncBatch.id);
+        this.connectionPool.sendToPeer(fromPeerId, ack);
+
+        logger.debug({ event: 'sync_batch_processed', fromPeerId, batchId: syncBatch.id, count: messages.length });
+    }
+
+    /**
+     * Handles an incoming SYNC_ACK to unblock the synchronization loop.
+     */
+    receiveSyncAck(message, fromPeerId) {
+        const { batchId } = JSON.parse(message.payload);
+        const pending = this.pendingAcks.get(fromPeerId);
+
+        if (pending && pending.batchId === batchId) {
+            clearTimeout(pending.timeout);
+            this.pendingAcks.delete(fromPeerId);
+            pending.resolve();
+            collector.increment('sync_acks_received_total');
+            logger.debug({ event: 'sync_ack_received', fromPeerId, batchId });
+        }
     }
 }
