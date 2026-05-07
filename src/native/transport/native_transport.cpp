@@ -13,13 +13,8 @@
 #include <napi.h>
 
 // Forward declarations from the individual implementation files
+Napi::Object InitTransport(Napi::Env env, Napi::Object exports);
 void RegisterTCPClient(Napi::Env env, Napi::Object exports);
-
-// NativeTCPServer::Init is defined in tcp_server.cpp — include it directly
-// via a shared header so we don't need an extra translation unit.
-
-// ── We re-declare the server Init signature here so it links cleanly ──────
-namespace { extern Napi::Object InitTransport(Napi::Env, Napi::Object); }
 
 // The real entry point: initialise both classes on the exports object
 Napi::Object InitAll(Napi::Env env, Napi::Object exports) {

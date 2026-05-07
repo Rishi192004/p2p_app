@@ -396,6 +396,4 @@ Napi::Object InitTransport(Napi::Env env, Napi::Object exports) {
     return exports;
 }
 
-NODE_API_MODULE(native_transport, InitTransport)
-
 #endif // __linux__

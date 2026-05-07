@@ -119,8 +119,25 @@ If you are studying this codebase, focus on these seven patterns:
 4.  **Adaptive Defenses**: Study the `RateLimiter` banning logic. Note the tradeoff: we ban by `peerId` to mitigate NAT issues, but acknowledge that "Identity is Cheap" (Sybil attacks).
 5.  **Signature Chaining**: Observe that forwarded messages remain signed by the *originator*, not the *forwarder*. This allows trust to propagate across untrusted hops.
 6.  **Staggered Reconnection**: Study `BootstrapDiscovery`'s jitter implementation. Understand why randomizing timing is better for server health than fixed intervals.
-7.  **Observability-First Design**: Note how metrics are recorded *inline* with business logic. You cannot manage what you do not measure.
-8.  **Graceful Degradation**: Study the `utils/pow.js` wrapper. Notice how it detects a missing C++ binary and seamlessly switches to a JS fallback. This is critical for "Production-Grade" software that must run on diverse environments.
+7.  **Observability-First Design**: Note how metrics are recorded *inline* with business logic. You cannot- **Scalable Gossip Protocol**: Implemented a custom epidemic broadcast system with anti-entropy and rumor-mongering phases.
+- **Native epoll Transport**: Engineered a C++ TCP transport layer using Linux `epoll` with Edge-Triggered (`EPOLLET`) semantics for O(1) event loop complexity.
+- **Adaptive Networking**: System automatically detects the OS and switches between native TCP (Linux) and WebSocket (Windows/macOS) transports.
+- **LSM-Tree Storage**: Leverages LevelDB for high-write throughput and sorted message indexing.
+- **Cryptographic Integrity**: Ed25519 signatures via `sodium-native` for message authentication and peer identity.
+
+## Tech Stack
+
+- **Runtime**: Node.js (ESM)
+- **Native**: C++17, N-API (node-addon-api)
+- **Networking**: epoll(7), WebSockets (ws)
+- **Storage**: LevelDB
+- **Logging**: Pino (structured JSON)
+W performance.
+- **DB**: LevelDB (Embedded)
+- **Crypto**: `sodium-native` (libsodium)
+- **Discovery**: `mdns-js` (Local) + PEX (Gossip)
+- **Observability**: `pino` (Logging) + In-memory Reservoir Metrics
+- **Status**: Core Gossip, Persistence, Offline Sync, Topic Scoping, Spam Protection, E2E Encryption, Multi-Vector Discovery, Production Observability, and Interactive CLI Client are **Production-Ready**. 
 
 ---
 
