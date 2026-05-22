@@ -1,0 +1,25 @@
+# This is an example configuration file
+# To learn more, see the full config.yaml reference: https://docs.continue.dev/reference
+
+name: Example Config
+version: 1.0.0
+schema: v1
+
+# Define which models can be used
+# https://docs.continue.dev/customization/models
+models:
+  - name: Qwen 3
+    provider: ollama
+    model: qwen3:8b
+
+  - name: Qwen Coder
+    provider: ollama
+    model: qwen2.5-coder:1.5b-base
+
+  - name: Llama 3.1
+    provider: ollama
+    model: llama3.1:8b
+# MCP Servers that Continue can access
+# https://docs.continue.dev/customization/mcp-tools
+mcpServers:
+  - uses: anthropic/memory-mcp

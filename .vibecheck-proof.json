@@ -1,0 +1,35 @@
+{
+  "schema": "vibecheck.proof.v1",
+  "generatedAt": "2026-05-11T07:02:55.490Z",
+  "generator": {
+    "name": "vibecheck-vscode",
+    "version": "33.0.5"
+  },
+  "verdict": "hallucination_detected",
+  "finding": {
+    "kind": "phantom_dep",
+    "package": "react",
+    "importSpecifier": "react",
+    "file": "visualizer\\src\\hooks\\useGossipState.js",
+    "line": 7,
+    "snippet": "import { useState, useCallback, useRef } from 'react';"
+  },
+  "manifest": {
+    "declaredDeps": [
+      "level",
+      "mdns-js",
+      "node-addon-api",
+      "pino",
+      "sodium-native",
+      "uuid",
+      "ws",
+      "autocannon",
+      "clinic",
+      "memory-level"
+    ]
+  },
+  "scan": {
+    "durationMs": 317,
+    "filesScanned": 16
+  }
+}
