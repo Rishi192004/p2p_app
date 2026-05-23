@@ -23,7 +23,7 @@ A **production-grade, fully decentralized Peer-to-Peer Gossip Messaging System**
 - **Adaptive transport factory** — auto-switches between epoll and WebSocket
 - React + Vite gossip **visualizer** with force-directed graph
 - Docker + docker-compose multi-node deployment
-- Interview demo orchestrator (`npm run interview`) with 4 audited phases
+- Interview demo orchestrator (`npm run interview`) with 7 audited phases
 
 ---
 
@@ -184,7 +184,7 @@ utils/
   generateId.js  ← UUID v4 message ID generator
 
 scripts/
-  interview_pro.js  ← 4-phase demo orchestrator (npm run interview)
+  interview_pro.js  ← 7-phase demo orchestrator (npm run interview)
   demo.js           ← 5-node mesh resilience simulation
   benchmark.js      ← Throughput benchmark
   latency_bench.js  ← p99 latency measurement
@@ -372,7 +372,7 @@ This system is **AP (Available + Partition Tolerant)**:
 |---|---|---|
 | `start` | `node node/server.js` | Start a single P2P node |
 | `test` | `node --test tests/**/*.test.js` | Full unit test suite |
-| `interview` | `node scripts/interview_pro.js` | 4-phase live demo |
+| `interview` | `node scripts/interview_pro.js` | 7-phase live demo |
 | `stress-test` | `node tests/ultimate_50k.test.js` | 50k message load test |
 | `bench:latency` | `node scripts/latency_bench.js` | p99 latency measurement |
 | `test:performance` | `node --test tests/performance.test.js` | 3-node latency audit |
@@ -429,10 +429,13 @@ npm run bench:native   # Proves ~4.5x latency advantage
 ### Interview Demo
 ```bash
 npm run interview
-# Phase 1: PoW Sybil Defense
-# Phase 2: ACK Backpressure
-# Phase 3: Lamport Clock Causal Order
-# Phase 4: Chaos / Self-Healing Mesh
+# Phase 1: Sybil Defense & Proof of Work (PoW)
+# Phase 2: Token-Bucket Rate Limiting & Auto Banning
+# Phase 3: Cryptographic Identity & Tamper Verification
+# Phase 4: Lamport Logical Clocks & LevelDB Indexing
+# Phase 5: Soft-State Distance-Vector Topic Routing
+# Phase 6: Multi-Topic Delta Reconnection Sync & Flow Control
+# Phase 7: Layered Peer Discovery & PEX Mesh Expansion
 ```
 
 ---
