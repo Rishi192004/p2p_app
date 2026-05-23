@@ -135,4 +135,25 @@ export class MessageFactory {
     static createSyncAck(sender, batchId) {
         return this.#createBaseMessage('SYNC_ACK', sender, JSON.stringify({ batchId }), { ttl: 1 });
     }
+
+    /**
+     * Creates a SUB_AD (Subscription Advertisement) message.
+     * 
+     * @param {string} sender - Originating peer ID.
+     * @param {string} topic - Topic name.
+     * @param {number} sequenceNumber - Monotonically increasing sequence number.
+     * @param {'JOIN'|'LEAVE'} action - Join or leave action.
+     * @param {string[]} path - Explored path to prevent loops.
+     * @param {string} [senderPublicKey=null] - Originating peer's public key.
+     * @returns {import('./schema.js').P2PMessage}
+     */
+    static createSubAd(sender, topic, sequenceNumber, action = 'JOIN', path = [], senderPublicKey = null) {
+        const msg = this.#createBaseMessage('SUB_AD', sender, JSON.stringify({
+            topic,
+            sequenceNumber,
+            action
+        }), { ttl: config.MAX_TTL, senderPublicKey });
+        msg.routingPath = path;
+        return msg;
+    }
 }

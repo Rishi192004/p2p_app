@@ -88,11 +88,12 @@ export class NativeServer extends EventEmitter {
      * @param {string} localPeerId
      * @param {string|null} localPublicKey
      */
-    constructor(port, localPeerId, localPublicKey = null) {
+    constructor(port, localPeerId, localPublicKey = null, getLocalSubscriptions = () => []) {
         super();
         this.port = port;
         this.localPeerId = localPeerId;
         this.localPublicKey = localPublicKey;
+        this.getLocalSubscriptions = getLocalSubscriptions;
 
         /** @type {Map<number, NativePeerEmitter>} fd → peer emitter */
         this._peers = new Map();
@@ -186,6 +187,7 @@ export class NativeServer extends EventEmitter {
                         peerId: this.localPeerId,
                         port: this.port,
                         publicKey: this.localPublicKey,
+                        subscriptions: this.getLocalSubscriptions()
                     });
 
                     this.emit('peer:connected', peer.remotePeerId, parsed.publicKey);
@@ -217,13 +219,14 @@ export class NativeClient extends EventEmitter {
      * @param {string|null} remotePeerId
      * @param {string|null} localPublicKey
      */
-    constructor(host, port, localPeerId, remotePeerId = null, localPublicKey = null) {
+    constructor(host, port, localPeerId, remotePeerId = null, localPublicKey = null, getLocalSubscriptions = () => []) {
         super();
         this.host = host;
         this.port = port;
         this.localPeerId = localPeerId;
         this.remotePeerId = remotePeerId;
         this.localPublicKey = localPublicKey;
+        this.getLocalSubscriptions = getLocalSubscriptions;
         this.isConnected = false;
         this._native = null;
         this._messageQueue = [];
@@ -270,6 +273,7 @@ export class NativeClient extends EventEmitter {
                     peerId: this.localPeerId,
                     port: this.port,
                     ...(this.localPublicKey && { publicKey: this.localPublicKey }),
+                    subscriptions: this.getLocalSubscriptions()
                 }));
                 this.emit('connected');
                 this._flushQueue();

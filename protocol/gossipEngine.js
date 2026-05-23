@@ -104,14 +104,94 @@ export class GossipEngine extends EventEmitter {
         // If new: add to seen set
         this.seenMessages.add(message.id);
 
-        // Decrement TTL, if TTL > 0 -> forward
-        message.ttl -= 1;
+        // Process control messages
+        if (message.type === 'SUB_AD') {
+            let payloadObj;
+            try {
+                payloadObj = JSON.parse(message.payload);
+            } catch (err) {
+                logger.error({ event: 'sub_ad_parse_error', error: err.message, id: message.id });
+                return;
+            }
 
-        if (message.ttl > 0) {
-            this.forwardMessage(message, fromPeerId);
+            const { topic, sequenceNumber, action } = payloadObj;
+            const path = message.routingPath || [];
+            const localPeerId = this.nodeConfig.peerId || this.connectionPool.localPeerId;
+
+            // Loop check
+            if (path.includes(localPeerId)) {
+                logger.debug({ event: 'sub_ad_loop_prevented', topic, sender: message.sender, path });
+                return;
+            }
+
+            const hopCount = path.length;
+            const ROUTE_LEASE_MS = 30000;
+            const expiresAt = Date.now() + ROUTE_LEASE_MS;
+
+            if (action === 'JOIN') {
+                const updated = this.topicRouter.updateRoute(
+                    topic,
+                    message.sender,
+                    fromPeerId || localPeerId,
+                    hopCount,
+                    sequenceNumber,
+                    path,
+                    expiresAt
+                );
+
+                if (updated && message.ttl > 1) {
+                    message.ttl -= 1;
+                    const nextPath = [...path, localPeerId];
+                    message.routingPath = nextPath;
+
+                    let activePeers = this.connectionPool.getAllPeerIds();
+                    const excludeSet = new Set(nextPath);
+                    if (fromPeerId) {
+                        excludeSet.add(fromPeerId);
+                    }
+                    excludeSet.add(message.sender);
+
+                    const selected = activePeers.filter(p => !excludeSet.has(p));
+                    if (selected.length > 0) {
+                        const allActivePeers = this.connectionPool.getAllPeerIds();
+                        const finalExcludeList = allActivePeers.filter(p => !selected.includes(p));
+                        this.connectionPool.broadcast(message, finalExcludeList);
+                        collector.increment('messages_forwarded_total');
+                    }
+                }
+            } else if (action === 'LEAVE') {
+                const deleted = this.topicRouter.removeRoute(topic, message.sender);
+                if (deleted && message.ttl > 1) {
+                    message.ttl -= 1;
+                    const nextPath = [...path, localPeerId];
+                    message.routingPath = nextPath;
+
+                    let activePeers = this.connectionPool.getAllPeerIds();
+                    const excludeSet = new Set(nextPath);
+                    if (fromPeerId) {
+                        excludeSet.add(fromPeerId);
+                    }
+                    excludeSet.add(message.sender);
+
+                    const selected = activePeers.filter(p => !excludeSet.has(p));
+                    if (selected.length > 0) {
+                        const allActivePeers = this.connectionPool.getAllPeerIds();
+                        const finalExcludeList = allActivePeers.filter(p => !selected.includes(p));
+                        this.connectionPool.broadcast(message, finalExcludeList);
+                        collector.increment('messages_forwarded_total');
+                    }
+                }
+            }
         } else {
-            collector.increment('messages_dropped_ttl');
-            logger.debug({ event: 'message_dropped', reason: 'ttl_expired', id: message.id });
+            // Decrement TTL, if TTL > 0 -> forward standard gossip
+            message.ttl -= 1;
+
+            if (message.ttl > 0) {
+                this.forwardMessage(message, fromPeerId);
+            } else {
+                collector.increment('messages_dropped_ttl');
+                logger.debug({ event: 'message_dropped', reason: 'ttl_expired', id: message.id });
+            }
         }
 
         // Emit event for the node layer to handle

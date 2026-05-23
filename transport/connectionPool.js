@@ -6,10 +6,11 @@ import { EventEmitter } from 'events';
 const logger = createLogger('connectionPool');
 
 export class ConnectionPool extends EventEmitter {
-    constructor(localPeerId, localPublicKey = null) {
+    constructor(localPeerId, localPublicKey = null, getLocalSubscriptions = () => []) {
         super();
         this.localPeerId = localPeerId;
         this.localPublicKey = localPublicKey;
+        this.getLocalSubscriptions = getLocalSubscriptions;
         this.outboundConnections = new Map(); // Map<peerId, WSClient>
         this.inboundConnections = new Map();  // Map<peerId, WebSocket>
     }
@@ -31,7 +32,7 @@ export class ConnectionPool extends EventEmitter {
             return;
         }
 
-        const client = new WSClient(host, port, this.localPeerId, peerId, this.localPublicKey);
+        const client = new WSClient(host, port, this.localPeerId, peerId, this.localPublicKey, this.getLocalSubscriptions);
         this.outboundConnections.set(peerId, client);
 
         client.on('connected', () => {

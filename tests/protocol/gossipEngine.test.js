@@ -2,8 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GossipEngine } from '../../protocol/gossipEngine.js';
 import { LamportClock } from '../../protocol/lamportClock.js';
-import { EventEmitter } from 'node:events';
 import collector from '../../metrics/collector.js';
+import { pow } from '../../utils/pow.js';
+import config from '../../config/default.js';
+
+function createMockMessage(id, sender, ttl, lamportTimestamp, topic = 'global') {
+    const msg = { id, sender, ttl, lamportTimestamp, topic };
+    msg.powNonce = pow.solvePuzzle(id, config.POW_DIFFICULTY);
+    return msg;
+}
 
 test('GossipEngine', async (t) => {
     const mockConnectionPool = {
@@ -16,7 +23,7 @@ test('GossipEngine', async (t) => {
     await t.test('receiveMessage should drop duplicates', () => {
         const clock = new LamportClock();
         const engine = new GossipEngine(mockConnectionPool, clock);
-        const msg = { id: 'msg-1', sender: 'node-A', ttl: 5, lamportTimestamp: 1 };
+        const msg = createMockMessage('msg-1', 'node-A', 5, 1);
 
         const beforeReceived = collector.getSnapshot().counters.messages_received_total || 0;
         const beforeDropped = collector.getSnapshot().counters.messages_dropped_duplicate || 0;
@@ -40,7 +47,7 @@ test('GossipEngine', async (t) => {
         };
         const clock = new LamportClock();
         const engine = new GossipEngine(pool, clock);
-        const msg = { id: 'msg-2', sender: 'node-A', ttl: 10, lamportTimestamp: 1 };
+        const msg = createMockMessage('msg-2', 'node-A', 10, 1);
 
         engine.receiveMessage(msg, 'neighbor-1');
         assert.strictEqual(msg.ttl, 9);
@@ -57,7 +64,7 @@ test('GossipEngine', async (t) => {
         };
         const clock = new LamportClock();
         const engine = new GossipEngine(pool, clock);
-        const msg = { id: 'msg-3', sender: 'node-A', ttl: 1, lamportTimestamp: 1 };
+        const msg = createMockMessage('msg-3', 'node-A', 1, 1);
 
         engine.receiveMessage(msg, 'neighbor-1');
         assert.strictEqual(msg.ttl, 0);
@@ -67,7 +74,7 @@ test('GossipEngine', async (t) => {
     await t.test('receiveMessage should emit message:new for fresh messages', (t, done) => {
         const clock = new LamportClock();
         const engine = new GossipEngine(mockConnectionPool, clock);
-        const msg = { id: 'msg-4', sender: 'node-A', ttl: 5, lamportTimestamp: 1 };
+        const msg = createMockMessage('msg-4', 'node-A', 5, 1);
 
         engine.on('message:new', (received) => {
             assert.strictEqual(received.id, msg.id);
@@ -80,7 +87,7 @@ test('GossipEngine', async (t) => {
     await t.test('receiveMessage should update local Lamport clock', () => {
         const clock = new LamportClock();
         const engine = new GossipEngine(mockConnectionPool, clock);
-        const msg = { id: 'msg-5', sender: 'node-A', ttl: 5, lamportTimestamp: 100 };
+        const msg = createMockMessage('msg-5', 'node-A', 5, 100);
 
         engine.receiveMessage(msg, 'neighbor-1');
         assert.strictEqual(clock.value, 101);

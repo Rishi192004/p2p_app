@@ -6,7 +6,7 @@ import config from '../config/default.js';
 const logger = createLogger('wsClient');
 
 export class WSClient extends EventEmitter {
-    constructor(host, port, localPeerId, remotePeerId = null, localPublicKey = null) {
+    constructor(host, port, localPeerId, remotePeerId = null, localPublicKey = null, getLocalSubscriptions = () => []) {
         super();
         this.host = host;
         this.port = port;
@@ -14,6 +14,7 @@ export class WSClient extends EventEmitter {
         this.localPeerId = localPeerId;
         this.remotePeerId = remotePeerId; // The ID of the peer we intend to connect to
         this.localPublicKey = localPublicKey;
+        this.getLocalSubscriptions = getLocalSubscriptions;
 
         this.ws = null;
         this.isConnected = false;
@@ -50,7 +51,8 @@ export class WSClient extends EventEmitter {
                 type: 'HELLO', 
                 peerId: this.localPeerId,
                 port: config.PORT, // Inform them our listening port
-                ...(this.localPublicKey && { publicKey: this.localPublicKey })
+                ...(this.localPublicKey && { publicKey: this.localPublicKey }),
+                subscriptions: this.getLocalSubscriptions()
             };
             this.ws.send(JSON.stringify(helloMsg));
 

@@ -85,12 +85,14 @@ test('Performance Audit: 3-Node Gossip Propagation', async (t) => {
     console.log(`| p99 Latency  | ${p99.toFixed(2)} ms               |`);
     console.log('--------------------------------------------------');
 
-    // ASSERTIONS: Verify high-performance targets
-    assert.ok(avg < 5, `Average latency (${avg.toFixed(2)}ms) should be under 5ms`);
-    assert.ok(p99 < 15, `p99 latency (${p99.toFixed(2)}ms) should be under 15ms`);
-
-    // Cleanup
-    for (const node of nodes) {
-        await node.stop().catch(() => {});
+    try {
+        // ASSERTIONS: Verify high-performance targets
+        assert.ok(avg < 5, `Average latency (${avg.toFixed(2)}ms) should be under 5ms`);
+        assert.ok(p99 < 15, `p99 latency (${p99.toFixed(2)}ms) should be under 15ms`);
+    } finally {
+        // Cleanup
+        for (const node of nodes) {
+            await node.stop().catch(() => {});
+        }
     }
 });

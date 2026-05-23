@@ -57,10 +57,10 @@ if (useNative) {
  * @param {string|null} [localPublicKey]
  * @returns {WSServer | NativeServer}
  */
-export function createServer(port, localPeerId, localPublicKey = null) {
+export function createServer(port, localPeerId, localPublicKey = null, getLocalSubscriptions = () => []) {
     return useNative
-        ? new NativeServer(port, localPeerId, localPublicKey)
-        : new WSServer(port, localPeerId, localPublicKey);
+        ? new NativeServer(port, localPeerId, localPublicKey, getLocalSubscriptions)
+        : new WSServer(port, localPeerId, localPublicKey, getLocalSubscriptions);
 }
 
 /**
@@ -70,12 +70,13 @@ export function createServer(port, localPeerId, localPublicKey = null) {
  * @param {string} localPeerId
  * @param {string|null} [remotePeerId]
  * @param {string|null} [localPublicKey]
+ * @param {Function} [getLocalSubscriptions]
  * @returns {WSClient | NativeClient}
  */
-export function createClient(host, port, localPeerId, remotePeerId = null, localPublicKey = null) {
+export function createClient(host, port, localPeerId, remotePeerId = null, localPublicKey = null, getLocalSubscriptions = () => []) {
     return useNative
-        ? new NativeClient(host, port, localPeerId, remotePeerId, localPublicKey)
-        : new WSClient(host, port, localPeerId, remotePeerId, localPublicKey);
+        ? new NativeClient(host, port, localPeerId, remotePeerId, localPublicKey, getLocalSubscriptions)
+        : new WSClient(host, port, localPeerId, remotePeerId, localPublicKey, getLocalSubscriptions);
 }
 
 /** Expose the active transport name for observability / diagnostics. */

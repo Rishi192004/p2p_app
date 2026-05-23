@@ -63,6 +63,15 @@ export class P2PNode extends EventEmitter {
         
         // 7. Observability
         this.metricsReporter = new MetricsReporter(this.config.metricsPort);
+
+        // 8. Topic Routing State
+        this.localSubscriptions = new Set([
+            'global',
+            `dm:${this.config.peerId}`
+        ]);
+        this.localSequences = new Map();
+        this.gcInterval = null;
+        this.refreshInterval = null;
     }
 
     async start() {
@@ -78,8 +87,9 @@ export class P2PNode extends EventEmitter {
         this.messageStore = new MessageStore(this.db);
         
         // Initialize Transport
-        this.connectionPool = new ConnectionPool(this.config.peerId, localPublicKey);
-        this.wsServer = new WSServer(this.config.port, this.config.peerId, localPublicKey);
+        const getSubs = () => Array.from(this.localSubscriptions);
+        this.connectionPool = new ConnectionPool(this.config.peerId, localPublicKey, getSubs);
+        this.wsServer = new WSServer(this.config.port, this.config.peerId, localPublicKey, getSubs);
         
         // Initialize Protocol
         this.gossipEngine = new GossipEngine(this.connectionPool, this.lamportClock, this.securityManager, this.config);
@@ -101,6 +111,15 @@ export class P2PNode extends EventEmitter {
             this.connectionPool.addInboundConnection(client);
         });
 
+        // Handle peer disconnection and failure to purge routes
+        this.connectionPool.on('peer:disconnected', (peerId) => {
+            this.gossipEngine.topicRouter.clearRoutesForPeer(peerId);
+        });
+
+        this.connectionPool.on('peer:failed', (peerId) => {
+            this.gossipEngine.topicRouter.clearRoutesForPeer(peerId);
+        });
+
         // Messages from Pool -> Gossip Engine / Ack Manager
         this.connectionPool.on('message:received', async (message, fromPeerId) => {
             if (message.type === 'ACK') {
@@ -114,6 +133,24 @@ export class P2PNode extends EventEmitter {
                 this.securityManager.registerPeerKey(message.peerId, message.publicKey);
                 this.peerManager.updateHeartbeat(message.peerId);
                 logger.info({ event: 'handshake_processed', from: message.peerId });
+
+                // Register any subscriptions shared during handshake
+                if (message.subscriptions && Array.isArray(message.subscriptions)) {
+                    const ROUTE_LEASE_MS = 30000;
+                    const expiresAt = Date.now() + ROUTE_LEASE_MS;
+                    for (const topic of message.subscriptions) {
+                        this.gossipEngine.topicRouter.updateRoute(
+                            topic,
+                            message.peerId, // originPeerId
+                            message.peerId, // nextHop
+                            0,              // hopCount (0 since they are directly connected to us)
+                            0,              // sequenceNumber
+                            [],             // path
+                            expiresAt       // soft-state lease expiry
+                        );
+                    }
+                    logger.info({ event: 'handshake_subscriptions_registered', peerId: message.peerId, count: message.subscriptions.length });
+                }
             } else if (message.type === 'HEARTBEAT') {
                 this.peerManager.updateHeartbeat(message.sender);
             } else if (message.type === 'PEER_EXCHANGE' || message.type === 'PEER_LIST') {
@@ -126,6 +163,9 @@ export class P2PNode extends EventEmitter {
 
         // New Gossip Messages -> Storage & UI
         this.gossipEngine.on('message:new', async (message) => {
+            if (message.type === 'SUB_AD') {
+                return; // Do not save routing control messages to LevelDB
+            }
             await this.messageStore.save(message);
             this.emit('message', message);
         });
@@ -149,6 +189,16 @@ export class P2PNode extends EventEmitter {
         this.discovery.start();
         this.metricsReporter.start();
 
+        // Initialize GC timer (runs gc() every 5 seconds)
+        this.gcInterval = setInterval(() => {
+            this.gossipEngine.topicRouter.gc(Date.now());
+        }, 5000);
+
+        // Initialize Refresh timer (broadcasts SUB_AD heartbeats for local subscriptions every 15 seconds)
+        this.refreshInterval = setInterval(() => {
+            this._refreshSubscriptions();
+        }, 15000);
+
         logger.info({ event: 'node_started' });
     }
 
@@ -171,15 +221,51 @@ export class P2PNode extends EventEmitter {
         return this.publish(`dm:${peerId}`, content);
     }
 
+    _advertiseSubscription(topic, action = 'JOIN') {
+        const seq = (this.localSequences.get(topic) || 0) + 1;
+        this.localSequences.set(topic, seq);
+
+        const publicKey = this.securityManager.keyManager.getPublicKey();
+        const msg = MessageFactory.createSubAd(
+            this.config.peerId,
+            topic,
+            seq,
+            action,
+            [], // path starts empty
+            publicKey
+        );
+
+        this.securityManager.signOutgoingMessage(msg);
+        this.gossipEngine.receiveMessage(msg, null);
+    }
+
+    _refreshSubscriptions() {
+        for (const topic of this.localSubscriptions) {
+            this._advertiseSubscription(topic, 'JOIN');
+        }
+    }
+
     subscribe(topic) {
-        this.gossipEngine.subscribe(this.config.peerId, topic);
+        if (this.localSubscriptions.has(topic)) return;
+        this.localSubscriptions.add(topic);
+        this._advertiseSubscription(topic, 'JOIN');
     }
 
     unsubscribe(topic) {
-        this.gossipEngine.unsubscribe(this.config.peerId, topic);
+        if (!this.localSubscriptions.has(topic)) return;
+        this.localSubscriptions.delete(topic);
+        this._advertiseSubscription(topic, 'LEAVE');
     }
 
     async stop() {
+        if (this.gcInterval) {
+            clearInterval(this.gcInterval);
+            this.gcInterval = null;
+        }
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+            this.refreshInterval = null;
+        }
         this.discovery.stop();
         this.metricsReporter.stop();
         await this.wsServer.stop();

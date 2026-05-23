@@ -90,11 +90,16 @@ test('SyncManager - receiveSyncBatch feeds into GossipEngine', async (t) => {
         }
     };
 
-    const syncManager = new SyncManager(db, {}, mockGossipEngine, {});
+    const mockConnectionPool = {
+        sendToPeer: (peerId, msg) => {}
+    };
+
+    const syncManager = new SyncManager(db, {}, mockGossipEngine, mockConnectionPool);
 
     const missingMsg = MessageFactory.createChat('peerA', 'recovery', 'global');
+    const syncBatch = MessageFactory.createSyncBatch('peerC', [missingMsg]);
     
-    syncManager.receiveSyncBatch([missingMsg], 'peerC');
+    syncManager.receiveSyncBatch(syncBatch, 'peerC');
 
     assert.notStrictEqual(fedMessage, null);
     assert.strictEqual(fedMessage.id, missingMsg.id);

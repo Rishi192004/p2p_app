@@ -6,11 +6,11 @@ This report summarizes the testing infrastructure, coverage metrics, and system 
 
 | Metric | Status |
 | :--- | :--- |
-| **Total Test Suites** | 2 |
-| **Total Tests Executed** | 50 |
-| **Pass Rate** | ✅ 100% (50/50) |
-| **Overall Code Coverage** | 📈 91.35% |
-| **Execution Duration** | ~1.02s |
+| **Total Test Suites** | 3 |
+| **Total Tests Executed** | 65 |
+| **Pass Rate** | ✅ 100% (65/65) |
+| **Overall Code Coverage** | 📈 92.10% |
+| **Execution Duration** | ~78.47s (includes 50k Stress Test) |
 
 ---
 
@@ -25,6 +25,7 @@ The following metrics reflect the robustness of the system's core logic.
 | **PendingQueue** | 100.00% | Ensures zero-loss message buffering during offline states. |
 | **GossipEngine** | 92.49% | Verified deduplication, TTL decay, and fanout logic. |
 | **SyncManager** | 90.24% | Validated delta-sync bursts and reconnect replays. |
+| **TopicRouter** | 94.60% | Validated soft-state routes, route propagation, and garbage collection. |
 
 ### Security & Identity
 | Module | Line Coverage | Rationale |

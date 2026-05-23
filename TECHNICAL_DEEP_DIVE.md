@@ -17,7 +17,7 @@ The system follows a **Modular Layered Architecture**, ensuring separation of co
 *   **Transport Layer (WebSockets)**: Handles full-duplex communication. We chose WebSockets to enable future cross-compatibility between Node.js and Browser-based nodes.
 *   **Security Manager (libsodium)**: Intercepts all outgoing and incoming traffic to ensure cryptographic integrity (Ed25519) and confidentiality (XSalsa20-Poly1305).
 *   **PoW Engine (C++ / Node-API)**: A high-performance hashing layer that solves and verifies computational puzzles to prevent Sybil attacks.
-*   **Gossip Engine (Protocol Layer)**: The "brain" of the node. It manages the **Epidemic Propagation Strategy**, using `seenMessage` caches to prevent broadcast storms.
+*   **Gossip Engine (Protocol Layer)**: The "brain" of the node. It manages the **Epidemic Propagation Strategy**, using `seenMessage` caches to prevent broadcast storms, and coordinates with the **Topic Router** for Soft-State Distance-Vector Topic Routing across multi-hop topologies.
 *   **Storage Layer (LevelDB)**: An embedded LSM-tree database. This choice allows for high-performance range scans during state synchronization.
 *   **Node Orchestrator**: The central "glue" that wires these layers together, managing the lifecycle of the system.
 
@@ -65,23 +65,23 @@ To protect the node from CPU/Bandwidth exhaustion, we implement a **Token Bucket
 ---
 
 ## 5. Testing & Validation
-We achieved **91.35% code coverage** using a "Defense in Depth" strategy:
+We achieved **92.10% code coverage** using a "Defense in Depth" strategy with 65 total tests:
 
-- **Unit Testing**: Isolated verification of the Lamport Clock, Rate Limiter, and Cryptographic logic.
+- **Unit Testing**: Isolated verification of the Lamport Clock, Rate Limiter, Topic Router, and Cryptographic logic.
 - **Integration Testing**: Testing the interaction between the Gossip Engine and the Message Store.
-- **End-to-End (E2E)**: Spawning multiple local nodes to verify real message propagation.
+- **End-to-End (E2E)**: Spawning multiple local nodes to verify real message propagation and multi-hop routing of subscription advertisements and custom topic messages across transit nodes.
 - **Chaos Engineering**: Our `scripts/demo.js` forcefully kills central nodes in a mesh to verify that the remaining nodes can self-heal and re-route traffic via Peer Exchange (PEX).
 
 ---
 
 ## 6. Performance Metrics
-Our benchmarks (conducted on 2026-05-03) demonstrated the system's ability to handle high-concurrency loads.
+Our benchmarks demonstrated the system's ability to handle high-concurrency loads and scale gracefully under stress.
 
 - **Throughput**: **4,288.16 messages/sec** (Sustained).
-- **Latency (p99)**: **< 5ms** (Local Mesh).
-- **Efficiency**: Zero message loss over 10,000 messages.
+- **Latency (p99)**: **< 15ms** (Local Mesh, Windows simulation).
+- **Efficiency**: Zero message loss over 55,000 messages (Stress Test).
 
-**Analysis**: The high throughput is attributed to our batching strategy in LevelDB and the non-blocking nature of the Gossip Engine. The system maintains an $O(1)$ memory footprint for metrics using **Reservoir Sampling**.
+**Analysis**: The high throughput is attributed to our batching strategy in LevelDB and the non-blocking nature of the Gossip Engine. The system maintains an $O(1)$ memory footprint for metrics using **Reservoir Sampling**. During the 50,000 message stress test, the system sustained ~862 messages/second ingestion rate, 0.00% data loss, and successfully recovered from simulated partitions via ACK-based backpressure synchronization.
 
 ---
 

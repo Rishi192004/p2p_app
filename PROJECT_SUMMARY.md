@@ -16,7 +16,7 @@ A **production-grade, fully decentralized Peer-to-Peer Gossip Messaging System**
 - Multi-vector peer discovery (mDNS + Bootstrap + PEX)
 - Token-bucket rate limiting with automatic temporary banning
 - Proof-of-Work Sybil defense (C++ native addon + JS fallback)
-- Topic-scoped gossip to reduce unnecessary network chatter
+- Soft-State Distance-Vector Topic Routing (multi-hop propagation over non-subscribed transit nodes, routing loop prevention, route expiry cleanup, and transitive signature verification)
 - Lamport logical clocks for causal ordering
 - Prometheus-compatible metrics endpoint + `/health` check
 - **Native epoll TCP transport** (Linux-only C++ addon, O(1) event loop)
@@ -71,6 +71,7 @@ A **production-grade, fully decentralized Peer-to-Peer Gossip Messaging System**
 | **Token Bucket Rate Limiter** | 20-token capacity, 5/sec refill, per-`peerId`. Allows natural chat bursts while bounding sustained rate. Chosen over Leaky Bucket (too strict) and Fixed Window (boundary stampede). Auto-bans after 10 violations in 60s (5-minute ban). Bans by `peerId`, not IP, to avoid punishing NAT'd offices. |
 | **Proof-of-Work (PoW)** | FNV-1a hash must be divisible by `DIFFICULTY`. Solver in C++ (`src/native/pow.cpp`) brute-forces nonce. Verifier is O(1). JS fallback (`utils/pow.js`) for non-Linux platforms. Forces attackers to spend real CPU per message — Sybil spam becomes economically infeasible. |
 | **ACK-based Sync Flow Control** | Sender transmits a batch of 100 messages, waits for `SYNC_ACK` (5s timeout). Prevents buffer bloat. Receiver cannot be overwhelmed by a fast sender. Mirrors TCP's sliding window at the application layer. |
+| **Soft-State DV Topic Routing** | Dynamically routes custom topic messages across multi-hop meshes. Nodes advertise subscriptions via `SUB_AD` messages. Intermediate peers build routing tables without needing to subscribe locally. Features loop prevention (path vectoring), soft-state route timeouts (garbage collection), and transitive public key propagation for signature verification. |
 
 ### Discovery
 | Mechanism | Why |
@@ -146,7 +147,7 @@ protocol/
   gossipEngine.js    ← Epidemic broadcast, fanout-K selection
   lamportClock.js    ← Logical clock (increment + update)
   rateLimiter.js     ← Token bucket + violation banning
-  topicRouter.js     ← Map<topic, Set<peerId>> scoped forwarding
+  topicRouter.js     ← Soft-state distance-vector routing table
   ackManager.js      ← Delivery confirmation tracking
   messageFactory.js  ← Canonical message construction
   pendingQueue.js    ← Offline message buffering
@@ -278,8 +279,8 @@ Linux + no addon    → WSServer + WSClient (logged warning)
 | **p99 Gossip Latency** | < 15ms | `tests/performance.test.js` |
 | **Stress Test** | 50,000 messages, 0 lost | `tests/ultimate_50k.test.js` |
 | **Native RTT** | 0.09ms (Linux) | `tests/native_bench.test.js` |
-| **Unit Test Pass Rate** | 100% (50/50) | `npm test` |
-| **Code Coverage** | 91.35% | `node --test --experimental-test-coverage` |
+| **Unit Test Pass Rate** | 100% (65/65) | `npm test` |
+| **Code Coverage** | 92.10% | `node --test --experimental-test-coverage` |
 | **ACK Avg Latency** | 104ms | `scripts/interview_pro.js` |
 | **Mesh Recovery Time** | 1.2s | `scripts/demo.js` chaos test |
 
@@ -345,7 +346,7 @@ Linux + no addon    → WSServer + WSClient (logged warning)
 | Message ordering | Lamport Clock | O(1) per update | `protocol/lamportClock.js` |
 | Spam defense | Token Bucket | O(1) per check | `protocol/rateLimiter.js` |
 | Sybil defense | Proof-of-Work | O(difficulty) solve, O(1) verify | `src/native/pow.cpp` |
-| Topic routing | `Map<topic, Set<peerId>>` | O(1) subscribe/lookup | `protocol/topicRouter.js` |
+| Topic routing | Soft-State DV Routing Table | O(N * T) memory, O(1) route lookup | `protocol/topicRouter.js` |
 | I/O multiplexing | epoll EPOLLET | **O(1)** per ready fd | `src/native/transport/tcp_server.cpp` |
 | Offline recovery | Delta sync (Lamport range) | O(missed_msgs) | `storage/syncManager.js` |
 | Flow control | ACK sliding window | O(1) per batch | `storage/syncManager.js` |

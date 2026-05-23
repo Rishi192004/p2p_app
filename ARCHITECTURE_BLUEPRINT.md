@@ -93,6 +93,7 @@ graph TD
 - **Purpose**: Distributed consensus and propagation rules.
 - **Components**:
     - `GossipEngine`: Implements epidemic fanout-k propagation.
+    - `TopicRouter`: Implements Soft-State Distance-Vector Topic Routing (route updates propagation, soft-state GC timeouts, path vectoring loop prevention, and transitive signature verification).
     - `LamportClock`: Ensures causal ordering without a global clock.
     - `RateLimiter`: Token bucket implementation to prevent spam.
 

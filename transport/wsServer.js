@@ -5,11 +5,12 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('wsServer');
 
 export class WSServer extends EventEmitter {
-    constructor(port, localPeerId, localPublicKey = null) {
+    constructor(port, localPeerId, localPublicKey = null, getLocalSubscriptions = () => []) {
         super();
         this.port = port;
         this.localPeerId = localPeerId;
         this.localPublicKey = localPublicKey;
+        this.getLocalSubscriptions = getLocalSubscriptions;
         this.wss = null;
         this.activeConnections = new Map(); // Map<peerId, WebSocket>
     }
@@ -53,7 +54,8 @@ export class WSServer extends EventEmitter {
                             type: 'HELLO',
                             peerId: this.localPeerId,
                             port: this.port,
-                            publicKey: this.localPublicKey
+                            publicKey: this.localPublicKey,
+                            subscriptions: this.getLocalSubscriptions()
                         };
                         ws.send(JSON.stringify(helloResponse));
                         
