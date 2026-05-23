@@ -22,6 +22,7 @@ export class Discovery {
         this.mdns = new MDNSDiscovery(this.peerManager, this.localPeerId, this.port);
         this.bootstrap = new BootstrapDiscovery(this.peerManager, this.localPeerId, this.bootstrapNodes);
         this.pex = new PeerExchange(this.peerManager, this.connectionPool, this.localPeerId);
+        this.pexTimeout = null;
     }
 
     /**
@@ -43,12 +44,16 @@ export class Discovery {
         this.pex.start();
         
         // Initial PEX request to expand network quickly
-        setTimeout(() => {
+        this.pexTimeout = setTimeout(() => {
             this.pex.requestPeersFromAll();
         }, 5000);
     }
 
     stop() {
+        if (this.pexTimeout) {
+            clearTimeout(this.pexTimeout);
+            this.pexTimeout = null;
+        }
         this.mdns.stop();
         this.bootstrap.stop();
         this.pex.stop();

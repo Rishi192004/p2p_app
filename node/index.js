@@ -16,6 +16,7 @@ import { Discovery } from './discovery/index.js';
 import { MetricsReporter } from '../metrics/reporter.js';
 import { MessageFactory } from '../protocol/messageFactory.js';
 import { createLogger } from '../utils/logger.js';
+import { AIClient } from '../ai/aiClient.js';
 import collector from '../metrics/collector.js';
 
 const logger = createLogger('node');
@@ -72,6 +73,11 @@ export class P2PNode extends EventEmitter {
         this.localSequences = new Map();
         this.gcInterval = null;
         this.refreshInterval = null;
+
+        // 9. AI Summarization State
+        this.aiClient = new AIClient(this.config.aiServiceUrl || 'http://localhost:8001');
+        this.newMessagesCounter = new Map();
+        this.activeSummarizations = new Set();
     }
 
     async start() {
@@ -82,9 +88,13 @@ export class P2PNode extends EventEmitter {
         const localPublicKey = this.securityManager.keyManager.getPublicKey();
 
         // Initialize Storage
-        await fs.mkdir(path.dirname(this.config.dbPath), { recursive: true });
-        this.db = new Level(this.config.dbPath);
-        this.messageStore = new MessageStore(this.db);
+        if (!this.db) {
+            await fs.mkdir(path.dirname(this.config.dbPath), { recursive: true });
+            this.db = new Level(this.config.dbPath);
+        }
+        if (!this.messageStore) {
+            this.messageStore = new MessageStore(this.db);
+        }
         
         // Initialize Transport
         const getSubs = () => Array.from(this.localSubscriptions);
@@ -192,6 +202,18 @@ export class P2PNode extends EventEmitter {
             }
             await this.messageStore.save(message);
             this.emit('message', message);
+
+            // Auto summarization trigger
+            if (message.type === 'CHAT' && this.config.enableAutoSummary) {
+                const count = (this.newMessagesCounter.get(message.topic) || 0) + 1;
+                this.newMessagesCounter.set(message.topic, count);
+                if (count >= 20) {
+                    this.newMessagesCounter.set(message.topic, 0);
+                    this.generateAndBroadcastSummary(message.topic, 'summary').catch(err => {
+                        logger.error({ event: 'auto_summarize_error', error: err.message, topic: message.topic });
+                    });
+                }
+            }
         });
 
         // Peer Reconnection -> Trigger Sync is handled directly in handshake/connection handlers above
@@ -207,8 +229,12 @@ export class P2PNode extends EventEmitter {
 
         // Start Components
         await this.wsServer.start();
-        this.discovery.start();
-        this.metricsReporter.start();
+        if (this.config.enableDiscovery !== false) {
+            this.discovery.start();
+        }
+        if (this.config.enableMetrics !== false) {
+            this.metricsReporter.start();
+        }
 
         // Initialize GC timer (runs gc() every 5 seconds)
         this.gcInterval = setInterval(() => {
@@ -223,10 +249,15 @@ export class P2PNode extends EventEmitter {
         logger.info({ event: 'node_started' });
     }
 
-    /**
-     * Sends a gossip message to a topic.
-     */
     publish(topic, content) {
+        if (content.trim().startsWith('/summary') || content.trim().startsWith('/keypoints')) {
+            const mode = content.trim().startsWith('/keypoints') ? 'keypoints' : 'summary';
+            this.generateAndBroadcastSummary(topic, mode).catch(err => {
+                logger.error({ event: 'manual_summary_trigger_error', error: err.message, topic, mode });
+            });
+            return `cmd-${Date.now()}`;
+        }
+
         const publicKey = this.securityManager.keyManager.getPublicKey();
         const message = MessageFactory.createChat(this.config.peerId, content, topic, publicKey);
         this.securityManager.signOutgoingMessage(message);
@@ -278,6 +309,69 @@ export class P2PNode extends EventEmitter {
         this._advertiseSubscription(topic, 'LEAVE');
     }
 
+    /**
+     * Retrieves the last N chat messages for a topic from LevelDB.
+     */
+    async getRecentMessages(topic, limit = 25) {
+        if (!this.messageStore) return [];
+        await this.messageStore.flush();
+        const startKey = `msg:${topic}:`;
+        const endKey = `msg:${topic}:~`;
+
+        const messages = [];
+        try {
+            for await (const [, value] of this.db.iterator({ gte: startKey, lte: endKey })) {
+                const msg = JSON.parse(value);
+                if (msg.type === 'CHAT') {
+                    messages.push(msg);
+                }
+            }
+        } catch (error) {
+            logger.error({ event: 'get_recent_messages_error', error: error.message, topic });
+        }
+        return messages.slice(-limit);
+    }
+
+    /**
+     * Fetches a summary or keypoints for a topic and gossips the resulting SUMMARY message.
+     */
+    async generateAndBroadcastSummary(topic, mode = 'summary') {
+        if (this.activeSummarizations.has(topic)) {
+            logger.debug({ event: 'summarization_in_progress_skipped', topic });
+            return;
+        }
+
+        this.activeSummarizations.add(topic);
+        try {
+            const messages = await this.getRecentMessages(topic, 25);
+            if (messages.length === 0) {
+                logger.debug({ event: 'summarization_skipped_no_chat_messages', topic });
+                return;
+            }
+
+            logger.info({ event: 'requesting_summarization', topic, mode, count: messages.length });
+            const summaryText = await this.aiClient.summarizeMessages(topic, mode, messages);
+            
+            if (summaryText) {
+                const publicKey = this.securityManager.keyManager.getPublicKey();
+                const summaryMessage = MessageFactory.createSummary(
+                    this.config.peerId,
+                    topic,
+                    summaryText,
+                    { mode, messageCount: messages.length },
+                    publicKey
+                );
+                this.securityManager.signOutgoingMessage(summaryMessage);
+                this.gossipEngine.receiveMessage(summaryMessage, null);
+                logger.info({ event: 'summary_broadcasted', topic, mode, msgId: summaryMessage.id });
+            }
+        } catch (error) {
+            logger.error({ event: 'generate_summary_failed', error: error.message, topic });
+        } finally {
+            this.activeSummarizations.delete(topic);
+        }
+    }
+
     async stop() {
         if (this.gcInterval) {
             clearInterval(this.gcInterval);
@@ -287,11 +381,22 @@ export class P2PNode extends EventEmitter {
             clearInterval(this.refreshInterval);
             this.refreshInterval = null;
         }
-        this.discovery.stop();
-        this.metricsReporter.stop();
+        if (this.config.enableDiscovery !== false) {
+            this.discovery.stop();
+        }
+        if (this.config.enableMetrics !== false) {
+            this.metricsReporter.stop();
+        }
         await this.wsServer.stop();
         this.connectionPool.clear();
-        if (this.db) await this.db.close();
+        if (this.messageStore) {
+            await this.messageStore.flush().catch(() => {});
+            this.messageStore = null;
+        }
+        if (this.db) {
+            await this.db.close();
+            this.db = null;
+        }
         logger.info({ event: 'node_stopped' });
     }
 }

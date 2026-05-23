@@ -37,6 +37,7 @@ export class SyncManager {
      * Helper to get the last seen Lamport timestamp for a peer.
      */
     async getLastSeenLamport(peerId) {
+        if (!this.db || this.db.status !== 'open') return 0;
         try {
             const value = await this.db.get(`sync:${peerId}`);
             return parseInt(value, 10) || 0;
@@ -50,6 +51,7 @@ export class SyncManager {
      * Helper to update the last seen Lamport timestamp for a peer.
      */
     async updateLastSeenLamport(peerId, lamportTimestamp) {
+        if (!this.db || this.db.status !== 'open') return;
         try {
             await this.db.put(`sync:${peerId}`, lamportTimestamp.toString());
         } catch (err) {
@@ -64,6 +66,7 @@ export class SyncManager {
      * @param {string} peerId 
      */
     async onPeerReconnected(peerId) {
+        if (!this.db || this.db.status !== 'open') return;
         const lastSeenLamport = await this.getLastSeenLamport(peerId);
         logger.info({ event: 'sync_started', peerId, since: lastSeenLamport });
         const startTime = Date.now();

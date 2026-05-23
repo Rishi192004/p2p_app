@@ -8,12 +8,15 @@ services:
       - PEER_ID=alpha
       - PORT=8080
       - DB_PATH=/usr/src/app/data
+      - AI_SERVICE_URL=http://ai-service:8001
     ports:
       - "8080:8080"
       # Expose metrics port
       - "8090:8090"
     volumes:
       - ./data/docker-alpha:/usr/src/app/data
+    depends_on:
+      - ai-service
 
   # A regular node connecting to alpha
   node-beta:
@@ -26,8 +29,10 @@ services:
       - DB_PATH=/usr/src/app/data
       # Connect to alpha using Docker's internal DNS routing
       - BOOTSTRAP=ws://node-alpha:8080
+      - AI_SERVICE_URL=http://ai-service:8001
     depends_on:
       - node-alpha
+      - ai-service
     ports:
       - "8081:8081"
       - "8091:8091"
@@ -44,11 +49,27 @@ services:
       - PORT=8082
       - DB_PATH=/usr/src/app/data
       - BOOTSTRAP=ws://node-alpha:8080,ws://node-beta:8081
+      - AI_SERVICE_URL=http://ai-service:8001
     depends_on:
       - node-alpha
       - node-beta
+      - ai-service
     ports:
       - "8082:8082"
       - "8092:8092"
     volumes:
       - ./data/docker-gamma:/usr/src/app/data
+
+  # AI Message Summarization service (FastAPI + Ollama communication client)
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: ai-summarizer
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - DEFAULT_MODEL=llama3.2:1b
+    ports:
+      - "8001:8001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

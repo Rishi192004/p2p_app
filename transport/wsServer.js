@@ -105,11 +105,27 @@ export class WSServer extends EventEmitter {
     }
 
     stop() {
-        if (this.wss) {
-            this.wss.close();
-            this.activeConnections.clear();
-            logger.info({ event: 'server_stopped' }, 'WebSocket server stopped');
-        }
+        return new Promise((resolve) => {
+            if (this.wss) {
+                // Close all active connections first
+                for (const ws of this.activeConnections.values()) {
+                    try {
+                        ws.close();
+                    } catch (err) {
+                        // Ignore
+                    }
+                }
+                this.activeConnections.clear();
+
+                this.wss.close(() => {
+                    logger.info({ event: 'server_stopped' }, 'WebSocket server stopped');
+                    resolve();
+                });
+                this.wss = null;
+            } else {
+                resolve();
+            }
+        });
     }
 }
 

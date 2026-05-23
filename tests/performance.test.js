@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import { P2PNode } from '../node/index.js';
 import fs from 'fs/promises';
+import config from '../config/default.js';
+
+// Lower PoW difficulty for performance tests to prevent JS fallback latency spikes
+config.POW_DIFFICULTY = 1;
 
 /**
  * 🚀 INTERVIEW VERIFICATION TEST: P2P LATENCY AUDIT

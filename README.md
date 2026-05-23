@@ -83,6 +83,13 @@ When a peer reconnects after a disconnect:
 *   **Bootstrap Entry**: Static seed node addresses with exponential reconnect backoff.
 *   **Peer Exchange (PEX)**: Gossip-based network topology healing and mesh propagation.
 
+### 8. Local AI Message Summarization (FastAPI Microservice)
+*   **Decoupled Architecture**: AI processing runs in a separate Python FastAPI microservice to ensure separation of concerns and runtime isolation.
+*   **Automatic Summarization**: Triggers a background summarization request when a topic accumulates 20 messages.
+*   **Manual Commands**: Users can execute `/summary` (to get a 3-4 sentence digest) or `/keypoints` (for bulleted highlights and action items) directly from chat.
+*   **Summary Broadcasts**: Summaries are signed, packaged, and broadcasted to the mesh as a special `SUMMARY` message type.
+*   **Fail-Safe Fallbacks**: Node-to-Python communication utilizes strict HTTP timeouts (10s) and catches all connection/service errors, falling back gracefully so that Node core operations never block or fail when AI services are offline.
+
 ---
 
 ## 🚀 Execution & Command Reference
@@ -150,6 +157,7 @@ npm run dev
 *   **Websockets**: `ws` (^8.14.2)
 *   **Native compilation**: `node-gyp` (^8.7.0)
 *   **Logger**: structured JSON logger `pino` (^8.16.2)
+*   **AI Microservice Stack**: Python 3.10, FastAPI, Uvicorn, HTTPX (async client), and Pydantic (data parsing)
 
 ---
 

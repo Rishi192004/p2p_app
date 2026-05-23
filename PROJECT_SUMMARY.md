@@ -22,6 +22,7 @@ A **production-grade, fully decentralized Peer-to-Peer Gossip Messaging System**
 - **Native epoll TCP transport** (Linux-only C++ addon, O(1) event loop)
 - **Adaptive transport factory** — auto-switches between epoll and WebSocket
 - React + Vite gossip **visualizer** with force-directed graph
+- Local AI Message Summarization (Python FastAPI microservice integrated with Ollama, supporting manual commands like `/summary` and `/keypoints` and auto-summarization on message threshold)
 - Docker + docker-compose multi-node deployment
 - Interview demo orchestrator (`npm run interview`) with 7 audited phases
 
@@ -104,6 +105,14 @@ A **production-grade, fully decentralized Peer-to-Peer Gossip Messaging System**
 | **docker-compose** | Multi-node local simulation. Bootstraps alpha/beta/gamma nodes with pre-configured peer addresses. |
 | **`node-gyp`** | Compiles C++ addons (`pow.node`, `native_transport.node`). `binding.gyp` uses OS conditionals — epoll sources only included on `OS=='linux'`. |
 
+### AI Summarization Microservice (Polyglot AI Extension)
+| Tool | Why |
+|---|---|
+| **FastAPI** | Modern, high-performance Python web framework used for the AI summarization microservice. Provides async endpoints and automated Pydantic schema validation. |
+| **Uvicorn** | Fast ASGI web server used to host the FastAPI application. |
+| **HTTPX** | Asynchronous HTTP client for Python, enabling non-blocking API calls to the Ollama backend. |
+| **Ollama** | Local LLM hosting server, orchestrating lightweight, fast models (`llama3.2:1b`, `phi3:mini`, `gemma2:2b`) for offline summarization. |
+
 ---
 
 ## 3. System Architecture — Layer by Layer
@@ -130,6 +139,16 @@ ConnPool            TopicRtr
 
 ### File Map — Every Source File
 ```
+ai/
+  aiClient.js         ← Node.js client for communicating with the Python AI service
+
+ai-service/
+  main.py             ← FastAPI endpoints & schema request validation
+  summarizer.py       ← Ollama system prompting & httpx invocation logic
+  config.py           ← Host, port, and Ollama connection parameters
+  requirements.txt    ← Python package dependencies
+  Dockerfile          ← Slim Python container build definition
+
 transport/
   index.js            ← Adaptive factory (epoll vs WebSocket)
   wsServer.js         ← WebSocket server (inbound connections)

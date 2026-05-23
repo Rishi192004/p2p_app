@@ -7,12 +7,14 @@ const peerId = process.env.PEER_ID || `node-${Math.floor(Math.random() * 1000)}`
 const port = parseInt(process.env.PORT) || 8080;
 const bootstrapNodes = process.env.BOOTSTRAP ? process.env.BOOTSTRAP.split(',') : [];
 const dbPath = process.env.DB_PATH || `./storage/db-${peerId}`;
+const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8001';
 
 const node = new P2PNode({
     peerId,
     port,
     bootstrapNodes,
-    dbPath
+    dbPath,
+    aiServiceUrl
 });
 
 async function main() {

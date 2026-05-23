@@ -156,4 +156,22 @@ export class MessageFactory {
         msg.routingPath = path;
         return msg;
     }
+
+    /**
+     * Creates a SUMMARY message.
+     * 
+     * @param {string} sender - Originating peer ID.
+     * @param {string} topic - The topic the summary belongs to.
+     * @param {string} summaryText - The text of the summary.
+     * @param {Object} [metadata={}] - Additional details (e.g. mode, message count).
+     * @param {string} [senderPublicKey] - Optional public key for verification.
+     * @returns {import('./schema.js').P2PMessage}
+     */
+    static createSummary(sender, topic, summaryText, metadata = {}, senderPublicKey = null) {
+        const payload = JSON.stringify({
+            summary: summaryText,
+            metadata
+        });
+        return this.#createBaseMessage('SUMMARY', sender, payload, { topic, senderPublicKey });
+    }
 }
