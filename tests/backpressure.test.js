@@ -25,9 +25,14 @@ async function runTest() {
     }
 
     // 2. Mock GossipEngine & ConnectionPool
-    const mockGossipEngine = { seenMessages: new Set() };
+    const mockGossipEngine = {
+        seenMessages: new Set(),
+        topicRouter: {
+            getTopicsForPeer: (peerId) => ['global']
+        }
+    };
     const mockConnectionPool = {
-        sendToPeer: (peerId, message) => {
+        send: (peerId, message) => {
             if (message.type === 'SYNC_BATCH') {
                 // Simulate a slow receiver: wait 100ms then send ACK
                 setTimeout(() => {

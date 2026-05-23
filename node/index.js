@@ -109,6 +109,27 @@ export class P2PNode extends EventEmitter {
         // Inbound Connections from Server -> Pool
         this.wsServer.on('connection', (client) => {
             this.connectionPool.addInboundConnection(client);
+
+            // Register subscriptions for inbound peer
+            if (client.subscriptions && Array.isArray(client.subscriptions)) {
+                const ROUTE_LEASE_MS = 30000;
+                const expiresAt = Date.now() + ROUTE_LEASE_MS;
+                for (const topic of client.subscriptions) {
+                    this.gossipEngine.topicRouter.updateRoute(
+                        topic,
+                        client.remotePeerId,
+                        client.remotePeerId,
+                        0,
+                        0,
+                        [],
+                        expiresAt
+                    );
+                }
+                logger.info({ event: 'handshake_subscriptions_registered', peerId: client.remotePeerId, count: client.subscriptions.length });
+            }
+
+            // Trigger sync for inbound peer (subscriptions are registered)
+            this.syncManager.onPeerReconnected(client.remotePeerId);
         });
 
         // Handle peer disconnection and failure to purge routes
@@ -151,6 +172,9 @@ export class P2PNode extends EventEmitter {
                     }
                     logger.info({ event: 'handshake_subscriptions_registered', peerId: message.peerId, count: message.subscriptions.length });
                 }
+
+                // Trigger sync for outbound client connection (after HELLO response has been processed)
+                this.syncManager.onPeerReconnected(message.peerId);
             } else if (message.type === 'HEARTBEAT') {
                 this.peerManager.updateHeartbeat(message.sender);
             } else if (message.type === 'PEER_EXCHANGE' || message.type === 'PEER_LIST') {
@@ -170,10 +194,7 @@ export class P2PNode extends EventEmitter {
             this.emit('message', message);
         });
 
-        // Peer Reconnection -> Trigger Sync
-        this.connectionPool.on('pool_peer_connected', (peerId) => {
-            this.syncManager.onPeerReconnected(peerId);
-        });
+        // Peer Reconnection -> Trigger Sync is handled directly in handshake/connection handlers above
 
         // Delivery Confirmations -> relay to UI
         this.ackManager.on('delivery:confirmed', (messageId) => {

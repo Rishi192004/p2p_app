@@ -7,10 +7,10 @@ This report summarizes the testing infrastructure, coverage metrics, and system 
 | Metric | Status |
 | :--- | :--- |
 | **Total Test Suites** | 3 |
-| **Total Tests Executed** | 65 |
-| **Pass Rate** | ✅ 100% (65/65) |
-| **Overall Code Coverage** | 📈 92.10% |
-| **Execution Duration** | ~78.47s (includes 50k Stress Test) |
+| **Total Tests Executed** | 66 |
+| **Pass Rate** | ✅ 100% (66/66) |
+| **Overall Code Coverage** | 📈 92.40% |
+| **Execution Duration** | ~45.77s (includes 50k Stress Test) |
 
 ---
 

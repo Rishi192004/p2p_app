@@ -64,6 +64,7 @@ export class WSServer extends EventEmitter {
                         // Create the inbound client relay
                         const inboundClient = new EventEmitter();
                         inboundClient.remotePeerId = connectedPeerId;
+                        inboundClient.subscriptions = parsedMsg.subscriptions || [];
                         inboundClient.send = (msg) => ws.send(JSON.stringify(msg));
                         inboundClient.close = () => ws.close();
                         

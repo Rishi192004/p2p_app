@@ -68,12 +68,25 @@ export class SyncManager {
         logger.info({ event: 'sync_started', peerId, since: lastSeenLamport });
         const startTime = Date.now();
 
-        const messagesToSync = await this.messageStore.getByTopic('global', lastSeenLamport);
+        // Retrieve all active topics for the peer
+        const topics = this.gossipEngine.topicRouter.getTopicsForPeer(peerId);
         
+        let messagesToSync = [];
+        for (const topic of topics) {
+            const topicMsgs = await this.messageStore.getByTopic(topic, lastSeenLamport);
+            messagesToSync.push(...topicMsgs);
+        }
+
         if (messagesToSync.length === 0) {
             logger.info({ event: 'sync_skipped', peerId, reason: 'already_consistent' });
             return;
         }
+
+        // Sort messages by Lamport timestamp to maintain causal ordering
+        messagesToSync.sort((a, b) => (a.lamportTimestamp || 0) - (b.lamportTimestamp || 0));
+
+        // Get the highest Lamport timestamp from the messages we are syncing
+        const maxLamportInSync = Math.max(...messagesToSync.map(m => m.lamportTimestamp || 0));
 
         // --- DYNAMIC FLOW CONTROL ---
         // Instead of a static timer (Throttling), we use a sliding window/ACK pattern.
@@ -86,7 +99,7 @@ export class SyncManager {
             const syncMsg = MessageFactory.createSyncBatch(this.localPeerId, chunk);
             
             logger.debug({ event: 'sync_batch_sent', peerId, batchId: syncMsg.id, size: chunk.length });
-            this.connectionPool.sendToPeer(peerId, syncMsg);
+            this.connectionPool.send(peerId, syncMsg);
             collector.increment('sync_batches_sent_total');
 
             // Wait for SYNC_ACK with a safety timeout (5 seconds)
@@ -98,6 +111,11 @@ export class SyncManager {
                 // On timeout, we might decrease batchSize (Multiplicative Decrease)
                 // and retry the current batch.
             }
+        }
+
+        // Update the last seen Lamport timestamp to avoid re-syncing the same messages
+        if (maxLamportInSync > lastSeenLamport) {
+            await this.updateLastSeenLamport(peerId, maxLamportInSync);
         }
         
         const duration = Date.now() - startTime;
@@ -138,7 +156,7 @@ export class SyncManager {
 
         // Send SYNC_ACK to tell the sender we are ready for more
         const ack = MessageFactory.createSyncAck(this.localPeerId, syncBatch.id);
-        this.connectionPool.sendToPeer(fromPeerId, ack);
+        this.connectionPool.send(fromPeerId, ack);
 
         logger.debug({ event: 'sync_batch_processed', fromPeerId, batchId: syncBatch.id, count: messages.length });
     }

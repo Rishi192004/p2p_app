@@ -16,7 +16,7 @@ A **production-grade, fully decentralized Peer-to-Peer Gossip Messaging System**
 - Multi-vector peer discovery (mDNS + Bootstrap + PEX)
 - Token-bucket rate limiting with automatic temporary banning
 - Proof-of-Work Sybil defense (C++ native addon + JS fallback)
-- Soft-State Distance-Vector Topic Routing (multi-hop propagation over non-subscribed transit nodes, routing loop prevention, route expiry cleanup, and transitive signature verification)
+- Soft-State Distance-Vector Topic Routing (multi-hop propagation over non-subscribed transit nodes, routing loop prevention, route expiry cleanup, transitive signature verification, and multi-topic delta-sync on reconnection)
 - Lamport logical clocks for causal ordering
 - Prometheus-compatible metrics endpoint + `/health` check
 - **Native epoll TCP transport** (Linux-only C++ addon, O(1) event loop)
@@ -279,7 +279,7 @@ Linux + no addon    → WSServer + WSClient (logged warning)
 | **p99 Gossip Latency** | < 15ms | `tests/performance.test.js` |
 | **Stress Test** | 50,000 messages, 0 lost | `tests/ultimate_50k.test.js` |
 | **Native RTT** | 0.09ms (Linux) | `tests/native_bench.test.js` |
-| **Unit Test Pass Rate** | 100% (65/65) | `npm test` |
+| **Unit Test Pass Rate** | 100% (66/66) | `npm test` |
 | **Code Coverage** | 92.10% | `node --test --experimental-test-coverage` |
 | **ACK Avg Latency** | 104ms | `scripts/interview_pro.js` |
 | **Mesh Recovery Time** | 1.2s | `scripts/demo.js` chaos test |

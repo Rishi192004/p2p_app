@@ -108,6 +108,26 @@ export class TopicRouter {
     }
 
     /**
+     * Retrieves all topics that a specific peer has subscribed to (where they are the origin).
+     * 
+     * @param {string} peerId 
+     * @returns {string[]} An array of topic names.
+     */
+    getTopicsForPeer(peerId) {
+        const topics = new Set();
+        // Every peer is implicitly subscribed to 'global' and their DM channel
+        topics.add('global');
+        topics.add(`dm:${peerId}`);
+
+        for (const [topic, topicRoutes] of this.routes.entries()) {
+            if (topicRoutes.has(peerId)) {
+                topics.add(topic);
+            }
+        }
+        return Array.from(topics);
+    }
+
+    /**
      * Clears all routing entries associated with a disconnected peer.
      * 
      * @param {string} peerId 

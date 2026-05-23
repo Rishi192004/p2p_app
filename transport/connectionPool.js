@@ -37,7 +37,7 @@ export class ConnectionPool extends EventEmitter {
 
         client.on('connected', () => {
             logger.info({ event: 'pool_peer_connected', peerId }, 'Peer added to active pool');
-            this.emit('peer:connected', peerId);
+            this.emit('peer:connected', peerId, []);
         });
 
         client.on('message', (msg) => {
@@ -67,7 +67,7 @@ export class ConnectionPool extends EventEmitter {
         this.inboundConnections.set(peerId, client);
 
         logger.info({ event: 'pool_inbound_connected', peerId }, 'Inbound peer added to pool');
-        this.emit('peer:connected', peerId);
+        this.emit('peer:connected', peerId, client.subscriptions || []);
 
         client.on('message', (msg) => {
             this.emit('message:received', msg, peerId);
