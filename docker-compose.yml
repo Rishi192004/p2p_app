@@ -1,75 +1,291 @@
+# =============================================================================
+# P2P Gossip Mesh — Universal Docker Compose
+# =============================================================================
+# ONE command to run the entire distributed system:
+#
+#   docker compose up
+#
+# On first boot, Ollama will automatically download the LLM model (~700MB).
+# Subsequent boots use the cached model from the named volume.
+#
+# To change the LLM model:
+#   1. Copy .env.example to .env
+#   2. Set OLLAMA_MODEL=gemma2:2b (or any Ollama model name)
+#   3. Run: docker compose down && docker compose up
+#
+# To view logs for a specific service:
+#   docker compose logs -f node-alpha
+#
+# To shut down and preserve data:
+#   docker compose down
+#
+# To shut down AND wipe all data (fresh start):
+#   docker compose down -v
+# =============================================================================
+
+name: p2p-gossip-mesh
+
+# ─── Shared environment defaults ───────────────────────────────────────────
+x-node-defaults: &node-defaults
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  networks:
+    - mesh
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "3"
+  environment:
+    - NODE_ENV=production
+    - AI_SERVICE_URL=http://ai-service:8001
+    - RATE_LIMIT_CAPACITY=${RATE_LIMIT_CAPACITY:-20}
+    - RATE_LIMIT_REFILL_RATE=${RATE_LIMIT_REFILL_RATE:-5}
+
+# =============================================================================
+# Services
+# =============================================================================
 services:
-  # The Bootstrap/Genesis Node
-  node-alpha:
-    build: .
-    image: p2p-gossip-node
-    container_name: p2p-alpha
-    environment:
-      - PEER_ID=alpha
-      - PORT=8080
-      - DB_PATH=/usr/src/app/data
-      - AI_SERVICE_URL=http://ai-service:8001
-    ports:
-      - "8080:8080"
-      # Expose metrics port
-      - "8090:8090"
-    volumes:
-      - ./data/docker-alpha:/usr/src/app/data
-    depends_on:
-      - ai-service
 
-  # A regular node connecting to alpha
-  node-beta:
-    build: .
-    image: p2p-gossip-node
-    container_name: p2p-beta
-    environment:
-      - PEER_ID=beta
-      - PORT=8081
-      - DB_PATH=/usr/src/app/data
-      # Connect to alpha using Docker's internal DNS routing
-      - BOOTSTRAP=ws://node-alpha:8080
-      - AI_SERVICE_URL=http://ai-service:8001
-    depends_on:
-      - node-alpha
-      - ai-service
+  # ─── Step 1: Ollama LLM Server ───────────────────────────────────────────
+  # Runs the Ollama model server. Model weights are persisted in a named
+  # volume so they are downloaded only once across all restarts.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: p2p-ollama
+    restart: unless-stopped
+    networks:
+      - mesh
     ports:
-      - "8081:8081"
-      - "8091:8091"
+      - "${OLLAMA_PORT:-11434}:11434"
     volumes:
-      - ./data/docker-beta:/usr/src/app/data
+      - ollama_models:/root/.ollama
+    # Health check: Ollama is ready when its /api/tags endpoint responds
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 10
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
 
-  # Another node connecting to both to form a mesh
-  node-gamma:
-    build: .
-    image: p2p-gossip-node
-    container_name: p2p-gamma
-    environment:
-      - PEER_ID=gamma
-      - PORT=8082
-      - DB_PATH=/usr/src/app/data
-      - BOOTSTRAP=ws://node-alpha:8080,ws://node-beta:8081
-      - AI_SERVICE_URL=http://ai-service:8001
+  # ─── Step 2: Model Puller (One-Shot Init Container) ──────────────────────
+  # Waits for Ollama to be healthy, then pulls the configured LLM model.
+  # Exits with code 0 when done. Subsequent startups skip this if model exists.
+  # This is the "init container" pattern from Kubernetes, adapted for Compose.
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: p2p-ollama-init
+    networks:
+      - mesh
     depends_on:
-      - node-alpha
-      - node-beta
-      - ai-service
-    ports:
-      - "8082:8082"
-      - "8092:8092"
-    volumes:
-      - ./data/docker-gamma:/usr/src/app/data
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
+    entrypoint:
+      - "sh"
+      - "-c"
+      - |
+        echo "=== Ollama Model Initializer ==="
+        echo "Model: $$OLLAMA_MODEL"
+        echo "Checking if model is already available..."
+        
+        # Check if model already exists to avoid redundant downloads
+        if curl -sf http://ollama:11434/api/tags | grep -q "$$OLLAMA_MODEL"; then
+          echo "✅ Model '$$OLLAMA_MODEL' already cached. Skipping download."
+          exit 0
+        fi
+        
+        echo "⬇️  Downloading model '$$OLLAMA_MODEL'... (this may take a few minutes on first run)"
+        curl -sf -X POST http://ollama:11434/api/pull \
+          -H "Content-Type: application/json" \
+          -d "{\"name\": \"$$OLLAMA_MODEL\", \"stream\": false}"
+        
+        echo "✅ Model '$$OLLAMA_MODEL' is ready."
+    restart: "no"
 
-  # AI Message Summarization service (FastAPI + Ollama communication client)
+  # ─── Step 3: AI Summarization Microservice ───────────────────────────────
+  # Python FastAPI service that bridges Node.js nodes to the Ollama LLM.
+  # Waits for the model to be fully downloaded before starting.
   ai-service:
     build:
       context: ./ai-service
       dockerfile: Dockerfile
-    container_name: ai-summarizer
-    environment:
-      - OLLAMA_HOST=http://host.docker.internal:11434
-      - DEFAULT_MODEL=llama3.2:1b
+    container_name: p2p-ai-service
+    restart: unless-stopped
+    networks:
+      - mesh
     ports:
-      - "8001:8001"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "${AI_SERVICE_PORT:-8001}:8001"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - DEFAULT_MODEL=${OLLAMA_MODEL:-llama3.2:1b}
+      - API_HOST=0.0.0.0
+      - API_PORT=8001
+    depends_on:
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ─── Step 4a: Node Alpha (Genesis/Seed Node) ─────────────────────────────
+  # The first P2P node. Other nodes use this as their bootstrap address.
+  # Waits for the AI service to be healthy before starting.
+  node-alpha:
+    <<: *node-defaults
+    container_name: p2p-alpha
+    environment:
+      - NODE_ENV=production
+      - AI_SERVICE_URL=http://ai-service:8001
+      - RATE_LIMIT_CAPACITY=${RATE_LIMIT_CAPACITY:-20}
+      - RATE_LIMIT_REFILL_RATE=${RATE_LIMIT_REFILL_RATE:-5}
+      - PEER_ID=alpha
+      - PORT=8080
+      - DB_PATH=/usr/src/app/data
+      - BOOTSTRAP=
+    ports:
+      - "${ALPHA_P2P_PORT:-8080}:8080"
+      - "${ALPHA_METRICS_PORT:-8090}:8090"
+    volumes:
+      - alpha_data:/usr/src/app/data
+    depends_on:
+      ai-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8090/health', r => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 25s
+      retries: 5
+
+  # ─── Step 4b: Node Beta ──────────────────────────────────────────────────
+  # A regular peer node. Connects to alpha as its bootstrap seed.
+  node-beta:
+    <<: *node-defaults
+    container_name: p2p-beta
+    environment:
+      - NODE_ENV=production
+      - AI_SERVICE_URL=http://ai-service:8001
+      - RATE_LIMIT_CAPACITY=${RATE_LIMIT_CAPACITY:-20}
+      - RATE_LIMIT_REFILL_RATE=${RATE_LIMIT_REFILL_RATE:-5}
+      - PEER_ID=beta
+      - PORT=8081
+      - DB_PATH=/usr/src/app/data
+      - BOOTSTRAP=ws://node-alpha:8080
+    ports:
+      - "${BETA_P2P_PORT:-8081}:8081"
+      - "${BETA_METRICS_PORT:-8091}:8091"
+    volumes:
+      - beta_data:/usr/src/app/data
+    depends_on:
+      node-alpha:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8091/health', r => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 25s
+      retries: 5
+
+  # ─── Step 4c: Node Gamma ─────────────────────────────────────────────────
+  # A third peer node. Connects to both alpha and beta for mesh resilience.
+  node-gamma:
+    <<: *node-defaults
+    container_name: p2p-gamma
+    environment:
+      - NODE_ENV=production
+      - AI_SERVICE_URL=http://ai-service:8001
+      - RATE_LIMIT_CAPACITY=${RATE_LIMIT_CAPACITY:-20}
+      - RATE_LIMIT_REFILL_RATE=${RATE_LIMIT_REFILL_RATE:-5}
+      - PEER_ID=gamma
+      - PORT=8082
+      - DB_PATH=/usr/src/app/data
+      - BOOTSTRAP=ws://node-alpha:8080,ws://node-beta:8081
+    ports:
+      - "${GAMMA_P2P_PORT:-8082}:8082"
+      - "${GAMMA_METRICS_PORT:-8092}:8092"
+    volumes:
+      - gamma_data:/usr/src/app/data
+    depends_on:
+      node-alpha:
+        condition: service_healthy
+      node-beta:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8092/health', r => r.statusCode === 200 ? process.exit(0) : process.exit(1)).on('error', () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 25s
+      retries: 5
+
+  # ─── Step 5: Gossip Visualizer (React + Nginx) ───────────────────────────
+  # The React + D3 frontend served as a static bundle by Nginx.
+  # Starts independently — no dependency on P2P nodes.
+  # Access at http://localhost:5173 after startup.
+  visualizer:
+    build:
+      context: ./visualizer
+      dockerfile: Dockerfile
+    container_name: p2p-visualizer
+    restart: unless-stopped
+    networks:
+      - mesh
+    ports:
+      - "${VISUALIZER_PORT:-5173}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80"]
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # All services share a single isolated bridge network.
+  # Docker's internal DNS resolves service names (e.g. "node-alpha", "ollama").
+  mesh:
+    driver: bridge
+    name: p2p-mesh-network
+
+# =============================================================================
+# Volumes — Named volumes for cross-platform persistence
+# =============================================================================
+# Named volumes (not bind mounts) work identically on Windows, Linux, and Mac.
+# Data survives 'docker compose down' but is wiped with 'docker compose down -v'.
+volumes:
+  # LLM model weights — downloaded once, reused on every restart
+  ollama_models:
+    name: p2p-ollama-models
+
+  # LevelDB persistent storage per P2P node
+  alpha_data:
+    name: p2p-alpha-data
+  beta_data:
+    name: p2p-beta-data
+  gamma_data:
+    name: p2p-gamma-data

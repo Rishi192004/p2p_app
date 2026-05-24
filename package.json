@@ -13,7 +13,8 @@
     "test:performance": "node --test tests/performance.test.js",
     "build:native": "node-gyp configure && node-gyp build --target native_transport",
     "bench:native": "node tests/native_bench.test.js",
-    "verify:native": "node scripts/verify_native.js"
+    "verify:native": "node scripts/verify_native.js",
+    "test:e2e": "node tests/e2e_complete.test.js"
   },
   "dependencies": {
     "level": "^8.0.1",

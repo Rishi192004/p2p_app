@@ -1,8 +1,30 @@
+# Node.js application
 node_modules
-.git
-.DS_Store
+npm-debug.log*
+
+# Data and storage
 data
 storage/bench-*
 storage/db-*
 storage/demo-*
 storage/docker-*
+
+# Dev-only files
+.git
+.DS_Store
+.vibecheck
+.claude
+.continue
+.cursor
+docs
+*.md
+benchmark-results*
+tests
+scripts
+workflows
+
+# Build artifacts
+build
+
+# Environment files
+.env
